@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# Provider
+# ---------------------------------------------------------------------------
+aws_region           = "us-east-1"
+aws_assume_role_arn  = ""  # set if deploying to a different AWS account
+dns_account_role_arn = ""  # set if Route53 zone is in a different account
+cloudflare_api_token = ""  # set via TF_VAR_cloudflare_api_token or here
+
+# ---------------------------------------------------------------------------
+# Core
+# ---------------------------------------------------------------------------
+app_name    = "relayer-channels"
+environment = "stg"
+
+# ---------------------------------------------------------------------------
+# Networking
+# ---------------------------------------------------------------------------
+vpc_id            = "vpc-XXXXXXXXXXXXXXXXX"
+vpc_cidr          = "172.31.0.0/16"
+public_subnet_ids = ["subnet-XXXXXXXXXXXXXXXXX", "subnet-XXXXXXXXXXXXXXXXX"]
+
+# ---------------------------------------------------------------------------
+# DNS & TLS
+# ---------------------------------------------------------------------------
+domain_name       = "channels.example.com"
+route53_zone_name = "example.com"     # OR provide route53_zone_id directly
+# route53_zone_id = "Z0123456789ABCDEF"
+# acm_certificate_arn = ""            # leave empty to auto-create via DNS validation
+
+# ---------------------------------------------------------------------------
+# Cloudflare (optional — set enable_cloudflare = true to activate)
+# ---------------------------------------------------------------------------
+enable_cloudflare     = false
+# cloudflare_zone_id    = ""
+# cloudflare_account_id = ""
+
+# ---------------------------------------------------------------------------
+# Secrets (store in terraform.tfvars — NEVER commit to version control)
+# ---------------------------------------------------------------------------
+relayer_api_key        = ""  # set via TF_VAR_relayer_api_key
+channels_admin_secret  = ""  # set via TF_VAR_channels_admin_secret
+webhook_signing_key    = ""  # set via TF_VAR_webhook_signing_key
+storage_encryption_key = ""  # set via TF_VAR_storage_encryption_key
+
+# Cloudflare Worker secrets (only needed when enable_cloudflare = true)
+# relayer_static_api_key = ""
+# key_salt               = ""
+# cf_analytics_api_token = ""
+
+# ---------------------------------------------------------------------------
+# Container / ECS
+# ---------------------------------------------------------------------------
+container_image = "public.ecr.aws/w5h5k2p1/openzeppelin-relayer-channels:mainnet-1.3.39"  # or leave empty to create ECR
+# container_port  = 8080
+# cpu             = 1024
+# memory          = 2048
+# desired_count   = 2
+
+# ---------------------------------------------------------------------------
+# Relayer Application
+# ---------------------------------------------------------------------------
+stellar_network = "testnet"
+# fund_relayer_id = "channels-fund"
+# distributed_mode = true
+
+# Additional environment variables for the relayer container:
+container_environment = [
+  # { name = "RATE_LIMIT_BURST", value = "500" },
+  # { name = "FEE_LIMIT", value = "1000000000" },
+]
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+# redis_node_type          = "cache.t4g.medium"  # auto-selected per environment
+# redis_num_cache_clusters = 1                    # 2+ enables failover
+
+# ---------------------------------------------------------------------------
+# Optional features
+# ---------------------------------------------------------------------------
+# enable_balance_check_lambda    = false
+# enable_restart_on_alarm_lambda = false
+# enable_cloudwatch_exporter     = false
+# enable_prometheus              = true
+
+# ---------------------------------------------------------------------------
+# Tags
+# ---------------------------------------------------------------------------
+tags = {
+  Project = "relayer-channels"
+}

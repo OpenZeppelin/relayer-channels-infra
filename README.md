@@ -1,0 +1,367 @@
+# Relayer Channels Infrastructure
+
+Terraform module for deploying a Stellar Relayer Channels service on AWS. Designed for third-party operators to spin up the full infrastructure in their own AWS account.
+
+## Architecture
+
+```
+User Request
+  |
+  v
+Route53 (domain_name)
+  |
+  v (optional)
+Cloudflare CDN + Workers Gateway (API key management, usage tracking)
+  |
+  v
+AWS ALB (TLS termination via ACM, HTTP -> HTTPS redirect)
+  |
+  v
+ECS Fargate Service (autoscaling, health checks)
+  |
+  +---> ElastiCache Redis (state, caching, with optional failover)
+  +---> SQS Queues (8 queues + DLQs for distributed transaction processing)
+  +---> CloudWatch Logs & Metrics
+  +---> Amazon Managed Prometheus (optional)
+  +---> Lambda: Balance Check + ECS Restart (optional)
+```
+
+## Prerequisites
+
+- Terraform >= 1.5.0
+- AWS provider < 6.0.0
+- Cloudflare provider ~> 5.0 (required even if Cloudflare is disabled — Terraform constraint)
+- An AWS account with permissions to create ECS, ALB, ElastiCache, SQS, Lambda, IAM, ACM, Route53, CloudWatch resources
+- A VPC with at least 2 public subnets spanning different AZs
+- A Route53 hosted zone for your domain
+- (Optional) A Cloudflare account if you want CDN + Workers gateway
+
+## Quick Start
+
+1. **Configure backend** — uncomment and edit the `backend "s3"` block in `versions.tf`
+
+2. **Create your tfvars file**:
+   ```bash
+   cp terraform.tfvars.example terraform.tfvars
+   # Edit terraform.tfvars with your values
+   ```
+
+3. **Deploy**:
+   ```bash
+   terraform init
+   terraform plan
+   terraform apply
+   ```
+
+## Usage
+
+### Standalone (using this repo directly)
+
+```hcl
+# terraform.tfvars
+aws_region        = "us-east-1"
+environment       = "prod"
+vpc_id            = "vpc-abc123"
+vpc_cidr          = "172.31.0.0/16"
+public_subnet_ids = ["subnet-aaa", "subnet-bbb"]
+domain_name       = "channels.mycompany.com"
+route53_zone_name = "mycompany.com"
+container_image   = "public.ecr.aws/my-org/relayer:v1.0.0"
+
+relayer_api_key       = "my-api-key"
+channels_admin_secret = "my-admin-secret"
+stellar_network       = "mainnet"
+```
+
+### As an external module
+
+```hcl
+module "relayer_channels" {
+  source = "github.com/your-org/relayer-channels-infra//modules/relayer-channels?ref=v1.0.0"
+
+  providers = {
+    aws        = aws
+    aws.dns    = aws.dns
+    cloudflare = cloudflare
+  }
+
+  app_name        = "my-relayer"
+  environment     = "prod"
+  vpc_id          = "vpc-abc123"
+  vpc_cidr        = "172.31.0.0/16"
+  public_subnet_ids = ["subnet-aaa", "subnet-bbb"]
+  domain_name     = "channels.mycompany.com"
+  route53_zone_id = "Z0123456789ABCDEF"
+  container_image = "public.ecr.aws/my-org/relayer:v1.0.0"
+
+  relayer_api_key       = var.relayer_api_key
+  channels_admin_secret = var.channels_admin_secret
+  stellar_network       = "mainnet"
+}
+```
+
+### With Cloudflare enabled
+
+```hcl
+enable_cloudflare      = true
+cloudflare_zone_id     = "abc123def456"
+cloudflare_account_id  = "def456abc123"
+relayer_static_api_key = "static-key-for-upstream"
+key_salt               = "random-salt-for-hashing"
+cf_analytics_api_token = "cloudflare-analytics-token"
+```
+
+### Without Cloudflare (default)
+
+When `enable_cloudflare = false` (the default):
+- A Route53 alias `A` record points directly at the ALB
+- No Cloudflare Workers, KV, or CDN proxy
+- You are responsible for restricting ALB ingress via `alb_allowed_ipv4_cidrs` or the ALB accepts all traffic
+
+### Cross-account DNS
+
+If your Route53 zone is in a different AWS account:
+
+```hcl
+dns_account_role_arn = "arn:aws:iam::111111111111:role/Terraform"
+```
+
+### Bring your own certificate
+
+```hcl
+acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abc-123"
+```
+
+When empty (default), the module creates an ACM certificate and validates it via Route53.
+
+## Variables
+
+### Provider Configuration
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `aws_region` | `string` | — | **Yes** | AWS region for all resources |
+| `cloudflare_api_token` | `string` | `""` | No | Cloudflare API token (required when `enable_cloudflare = true`) |
+| `aws_assume_role_arn` | `string` | `""` | No | IAM role ARN to assume for resource creation |
+| `dns_account_role_arn` | `string` | `""` | No | IAM role ARN to assume for Route53 operations (cross-account) |
+
+### Core
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `app_name` | `string` | `"relayer-channels"` | No | Application name prefix for all resources |
+| `environment` | `string` | — | **Yes** | Deployment environment (`prod`, `stg`, etc.) |
+| `name_suffix_environment` | `bool` | `true` | No | Append `-<environment>` to resource names (disabled when environment is `prod`) |
+
+### Networking
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `vpc_id` | `string` | — | **Yes** | VPC ID |
+| `vpc_cidr` | `string` | `""` | **Yes** | VPC CIDR block (used for ALB egress rules) |
+| `public_subnet_ids` | `list(string)` | — | **Yes** | Public subnet IDs (at least 2 AZs) |
+| `alb_allowed_ipv4_cidrs` | `list(string)` | `[]` | No | IPv4 CIDRs for ALB ingress. Empty = Cloudflare IPs (if enabled) or `0.0.0.0/0` |
+| `alb_allowed_ipv6_cidrs` | `list(string)` | `[]` | No | IPv6 CIDRs for ALB ingress |
+| `additional_alb_ingress_cidrs` | `list(string)` | `[]` | No | Additional IPv4 CIDRs for direct ALB access (e.g. VPN) |
+
+### DNS & TLS
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `domain_name` | `string` | — | **Yes** | FQDN for the service (e.g. `channels.example.com`) |
+| `route53_zone_id` | `string` | `""` | Conditional | Route53 zone ID. Required if `route53_zone_name` is not set. |
+| `route53_zone_name` | `string` | `""` | Conditional | Route53 zone name for dynamic lookup. Ignored if `route53_zone_id` is set. |
+| `acm_certificate_arn` | `string` | `""` | No | Existing ACM certificate ARN. Empty = auto-create via DNS validation. |
+
+### Cloudflare (optional)
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `enable_cloudflare` | `bool` | `false` | No | Enable Cloudflare CDN proxy + Workers gateway |
+| `cloudflare_zone_id` | `string` | `""` | Conditional | Cloudflare zone ID (required when `enable_cloudflare = true`) |
+| `cloudflare_account_id` | `string` | `""` | Conditional | Cloudflare account ID (required when `enable_cloudflare = true`) |
+| `relayer_static_api_key` | `string` | `""` | Conditional | Static upstream API key injected by the Worker (required when `enable_cloudflare = true`) |
+| `key_salt` | `string` | `""` | Conditional | Salt for hashing user API keys in KV (required when `enable_cloudflare = true`) |
+| `cf_analytics_api_token` | `string` | `""` | Conditional | Cloudflare Analytics API token (required when `enable_cloudflare = true`) |
+| `gen_ip_rate_hour` | `number` | `2` | No | Max `/gen` requests per IP per hour |
+| `relay_rpm_per_key` | `number` | `60` | No | Max relay requests per minute per user key |
+
+### Container / ECS
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `container_image` | `string` | `""` | No | Container image URI. Empty = create ECR repository. |
+| `container_image_tag` | `string` | `"latest"` | No | Image tag (used when ECR is created) |
+| `container_port` | `number` | `8080` | No | Container listen port |
+| `cpu` | `number` | `1024` | No | ECS task CPU units (1 vCPU = 1024) |
+| `memory` | `number` | `2048` | No | ECS task memory in MiB |
+| `desired_count` | `number` | `null` | No | Desired task count. Default: `2` (prod), `1` (other) |
+| `autoscaling_min_capacity` | `number` | `null` | No | Min tasks for autoscaling. Default: `desired_count` |
+| `autoscaling_max_capacity` | `number` | `null` | No | Max tasks for autoscaling. Default: `10` (prod), `4` (other) |
+| `cpu_architecture` | `string` | `"X86_64"` | No | CPU architecture (`X86_64` or `ARM64`) |
+| `ephemeral_storage_gib` | `number` | `50` | No | Ephemeral storage in GiB |
+| `health_check_path` | `string` | `"/api/v1/health"` | No | HTTP health check path |
+| `container_environment` | `list(object)` | `[]` | No | Additional env vars (merged with module-managed; user values take precedence) |
+| `container_secrets` | `list(object)` | `[]` | No | Additional SSM/Secrets Manager refs (merged with module-managed secrets) |
+
+### Relayer Application
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `stellar_network` | `string` | `"testnet"` | No | Stellar network (`mainnet` or `testnet`) |
+| `fund_relayer_id` | `string` | `"channels-fund"` | No | Fund relayer identifier |
+| `allowed_fund_relayer_ids` | `string` | `""` | No | Comma-separated list of allowed fund relayer IDs |
+| `distributed_mode` | `bool` | `true` | No | Enable SQS-backed distributed processing |
+| `log_level` | `string` | `"warn"` | No | Application log level |
+
+### Secrets
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `relayer_api_key` | `string` | — | **Yes** | Relayer API key (stored in SSM) |
+| `channels_admin_secret` | `string` | — | **Yes** | Channels plugin admin secret (stored in SSM) |
+| `webhook_signing_key` | `string` | `""` | No | Webhook signing key (stored in SSM if provided) |
+| `storage_encryption_key` | `string` | `""` | No | Storage encryption key (stored in SSM if provided) |
+
+### Redis (ElastiCache)
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `redis_node_type` | `string` | `null` | No | Node type. Default: `cache.r7g.large` (prod), `cache.t4g.medium` (other) |
+| `redis_num_cache_clusters` | `number` | `null` | No | Number of nodes. Default: `2` (prod, with failover), `1` (other) |
+| `redis_engine_version` | `string` | `"7.1"` | No | Redis engine version |
+| `redis_snapshot_retention_days` | `number` | `7` | No | Snapshot retention days (0 disables) |
+
+### SQS
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `sqs_queue_prefix` | `string` | `""` | No | SQS queue name prefix. Default: `relayer-<network>-<environment>` |
+
+### Lambda (optional monitoring)
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `enable_balance_check_lambda` | `bool` | `false` | No | Deploy balance check Lambda |
+| `balance_check_schedule` | `string` | `"rate(5 minutes)"` | No | EventBridge schedule expression |
+| `balance_check_extra_urls` | `string` | `""` | No | Additional `relayerId=url` pairs for balance checks |
+| `enable_restart_on_alarm_lambda` | `bool` | `false` | No | Deploy ECS restart Lambda |
+
+### CloudWatch Exporter (optional sidecar)
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `enable_cloudwatch_exporter` | `bool` | `false` | No | Enable metrics exporter sidecar |
+| `cloudwatch_exporter_image` | `string` | `""` | Conditional | Exporter container image (required when enabled) |
+| `cloudwatch_metrics_namespace` | `string` | `"RelayerChannelsTransactions"` | No | CloudWatch metrics namespace |
+
+### Observability
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `log_retention_days` | `number` | `null` | No | Cluster log retention. Default: `30` (prod), `7` (other) |
+| `task_log_retention_days` | `number` | `null` | No | Task log retention. Default: `365` (prod), `7` (other) |
+| `enable_prometheus` | `bool` | `true` | No | Create Amazon Managed Prometheus workspace |
+
+### ALB
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `alb_deletion_protection` | `bool` | `null` | No | ALB deletion protection. Default: `true` (prod), `false` (other) |
+| `alb_access_logs_bucket` | `string` | `""` | No | S3 bucket for ALB access logs (empty = disabled) |
+| `alb_access_logs_prefix` | `string` | `"access"` | No | S3 key prefix for access logs |
+
+### Tags
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `tags` | `map(string)` | `{}` | No | Tags applied to all resources |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| `ecs_cluster_name` | ECS cluster name |
+| `ecs_cluster_arn` | ECS cluster ARN |
+| `ecs_service_name` | ECS service name |
+| `ecr_repository_name` | ECR public repository name (null if `container_image` was provided) |
+| `ecr_repository_url` | ECR public repository URL (null if `container_image` was provided) |
+| `alb_dns_name` | ALB DNS name |
+| `domain_name` | Service domain name |
+| `acm_certificate_arn` | ACM certificate ARN |
+| `redis_primary_endpoint` | Redis primary endpoint address |
+| `redis_reader_endpoint` | Redis reader endpoint address |
+| `sqs_queue_urls` | Map of queue names to URLs |
+| `prometheus_workspace_id` | AMP workspace ID (null if disabled) |
+| `prometheus_endpoint` | AMP remote write endpoint (null if disabled) |
+| `ssm_parameter_prefix` | SSM Parameter Store prefix for secrets |
+| `cloudflare_worker_name` | Cloudflare Worker name (null if disabled) |
+
+## Conditional Resource Creation
+
+| Condition | Resources Created |
+|-----------|-------------------|
+| `container_image = ""` | ECR Public repository |
+| `acm_certificate_arn = ""` | ACM certificate + Route53 DNS validation |
+| `enable_cloudflare = true` | Cloudflare Worker, KV namespace, DNS record, Workers route |
+| `enable_cloudflare = false` | Route53 alias A record pointing to ALB |
+| `enable_balance_check_lambda = true` | Lambda function + EventBridge schedule |
+| `enable_restart_on_alarm_lambda = true` | Lambda function for ECS restart |
+| `enable_cloudwatch_exporter = true` | Sidecar container in ECS task |
+| `enable_prometheus = true` | Amazon Managed Prometheus workspace |
+| `webhook_signing_key != ""` | SSM parameter for webhook signing key |
+| `storage_encryption_key != ""` | SSM parameter for storage encryption key |
+| `alb_access_logs_bucket != ""` | ALB access logging to S3 |
+
+## Environment-Based Defaults
+
+| Variable | `prod` | Other |
+|----------|--------|-------|
+| `desired_count` | 2 | 1 |
+| `autoscaling_max_capacity` | 10 | 4 |
+| `redis_node_type` | `cache.r7g.large` | `cache.t4g.medium` |
+| `redis_num_cache_clusters` | 2 (with failover) | 1 |
+| `alb_deletion_protection` | `true` | `false` |
+| `log_retention_days` | 30 | 7 |
+| `task_log_retention_days` | 365 | 7 |
+| Resource name suffix | none | `-<environment>` |
+
+## SQS Queues
+
+The module creates 8 standard queues for distributed transaction processing, each with a Dead Letter Queue:
+
+| Queue | Visibility Timeout | Max Receives | Purpose |
+|-------|-------------------|--------------|---------|
+| `transaction-request` | 300s | 6 | Initial transaction requests |
+| `transaction-submission` | 120s | 2 | Blockchain submission |
+| `status-check` | 300s | 1000 | General status polling |
+| `status-check-evm` | 300s | 1000 | EVM status polling |
+| `status-check-stellar` | 300s | 1000 | Stellar status polling |
+| `notification` | 180s | 6 | Notification delivery |
+| `token-swap-request` | 300s | 6 | Token swap processing |
+| `relayer-health-check` | 300s | 6 | Health checks with backoff |
+
+## Post-Deploy Steps
+
+1. **Push your container image** (if using module-created ECR Public):
+   ```bash
+   aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+   docker tag my-relayer:latest <ecr_repository_url>:latest
+   docker push <ecr_repository_url>:latest
+   ```
+
+2. **Verify the service**:
+   ```bash
+   curl https://channels.example.com/api/v1/health
+   ```
+
+3. **Update secrets** — after initial deploy, update SSM parameters directly in the AWS console or CLI. The module uses `ignore_changes` on secret values to prevent Terraform from overwriting manual updates.
+
+## Security Notes
+
+- All secrets are stored in AWS SSM Parameter Store as `SecureString`
+- The `terraform.tfvars` file is gitignored — never commit secrets to version control
+- Use `TF_VAR_*` environment variables or a secrets manager for CI/CD pipelines
+- The ALB only accepts HTTPS (port 443) with TLS 1.3; HTTP is redirected
+- When Cloudflare is enabled, ALB ingress is restricted to Cloudflare IP ranges
+- ECS task IAM roles follow least-privilege: SSM read, SQS access, CloudWatch metrics, ECS exec
