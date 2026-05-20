@@ -66,7 +66,7 @@ vpc_cidr          = "172.31.0.0/16"
 public_subnet_ids = ["subnet-aaa", "subnet-bbb"]
 domain_name       = "channels.mycompany.com"
 route53_zone_name = "mycompany.com"
-container_image   = "public.ecr.aws/my-org/relayer:v1.0.0"
+container_image   = "public.ecr.aws/w5h5k2p1/openzeppelin-relayer-channels:mainnet-1.3.39"
 
 relayer_api_key       = "my-api-key"
 channels_admin_secret = "my-admin-secret"
@@ -77,7 +77,7 @@ stellar_network       = "mainnet"
 
 ```hcl
 module "relayer_channels" {
-  source = "github.com/your-org/relayer-channels-infra//modules/relayer-channels?ref=v1.0.0"
+  source = "github.com/OpenZeppelin/relayer-channels-infra//modules/relayer-channels?ref=main"
 
   providers = {
     aws        = aws
@@ -92,7 +92,7 @@ module "relayer_channels" {
   public_subnet_ids = ["subnet-aaa", "subnet-bbb"]
   domain_name     = "channels.mycompany.com"
   route53_zone_id = "Z0123456789ABCDEF"
-  container_image = "public.ecr.aws/my-org/relayer:v1.0.0"
+  container_image = "public.ecr.aws/w5h5k2p1/openzeppelin-relayer-channels:mainnet-1.3.39"
 
   relayer_api_key       = var.relayer_api_key
   channels_admin_secret = var.channels_admin_secret
@@ -340,6 +340,229 @@ The module creates 8 standard queues for distributed transaction processing, eac
 | `notification` | 180s | 6 | Notification delivery |
 | `token-swap-request` | 300s | 6 | Token swap processing |
 | `relayer-health-check` | 300s | 6 | Health checks with backoff |
+
+## Step-by-Step Deployment Guide
+
+This guide walks through deploying the Relayer Channels service from scratch in your own AWS account.
+
+### Step 1: AWS Account Prerequisites
+
+Ensure you have the following in your AWS account before starting:
+
+1. **AWS CLI configured** with credentials that have admin-level access (or at minimum: ECS, EC2, ElastiCache, SQS, Lambda, IAM, ACM, Route53, CloudWatch, SSM permissions):
+   ```bash
+   aws sts get-caller-identity   # verify your credentials
+   ```
+
+2. **A VPC with at least 2 public subnets** in different Availability Zones. If you don't have one, use the AWS default VPC:
+   ```bash
+   # Find your default VPC
+   aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text
+
+   # Find its CIDR
+   aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].CidrBlock" --output text
+
+   # List public subnets (pick 2 in different AZs)
+   aws ec2 describe-subnets --filters "Name=vpc-id,Values=<your-vpc-id>" \
+     --query "Subnets[*].[SubnetId,AvailabilityZone]" --output table
+   ```
+
+3. **A Route53 hosted zone** for the domain you want to use (e.g. `channels.blockdaemon.com`):
+   ```bash
+   aws route53 list-hosted-zones --query "HostedZones[*].[Id,Name]" --output table
+   ```
+   Note the Zone ID — you'll need it in your configuration.
+
+4. **Terraform >= 1.5.0** installed:
+   ```bash
+   terraform version
+   ```
+
+### Step 2: Set Up the Terraform Project
+
+You can either clone this repo directly or reference it as a remote module.
+
+**Option A: Clone and deploy (recommended for first-time setup)**
+
+```bash
+git clone git@github.com:OpenZeppelin/relayer-channels-infra.git
+cd relayer-channels-infra
+```
+
+**Option B: Reference as a remote module**
+
+Create a new directory for your deployment and add a `main.tf`:
+
+```hcl
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "< 6.0.0"
+    }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+provider "aws" {
+  alias  = "dns"
+  region = var.aws_region
+}
+
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
+}
+
+variable "aws_region" {
+  default = "us-east-1"
+}
+
+variable "cloudflare_api_token" {
+  default   = ""
+  sensitive = true
+}
+
+variable "relayer_api_key" {
+  sensitive = true
+}
+
+variable "channels_admin_secret" {
+  sensitive = true
+}
+
+module "relayer_channels" {
+  source = "github.com/OpenZeppelin/relayer-channels-infra//modules/relayer-channels?ref=main"
+
+  providers = {
+    aws        = aws
+    aws.dns    = aws.dns
+    cloudflare = cloudflare
+  }
+
+  aws_region        = var.aws_region
+  environment       = "prod"
+  vpc_id            = "vpc-XXXXXXXXXXXXXXXXX"       # your VPC ID
+  vpc_cidr          = "172.31.0.0/16"                # your VPC CIDR
+  public_subnet_ids = ["subnet-XXX", "subnet-YYY"]   # your subnet IDs
+  domain_name       = "channels.yourdomain.com"       # your FQDN
+  route53_zone_id   = "Z0123456789ABCDEF"             # your Route53 zone ID
+  container_image   = "public.ecr.aws/w5h5k2p1/openzeppelin-relayer-channels:mainnet-1.3.39"
+  stellar_network   = "mainnet"
+
+  relayer_api_key       = var.relayer_api_key
+  channels_admin_secret = var.channels_admin_secret
+}
+```
+
+### Step 3: Configure Variables
+
+If using Option A (cloned repo):
+
+```bash
+cp terraform.tfvars.example terraform.tfvars
+```
+
+Edit `terraform.tfvars` and fill in the required values:
+
+```hcl
+# Required — replace with your values
+aws_region        = "us-east-1"
+environment       = "prod"
+vpc_id            = "vpc-XXXXXXXXXXXXXXXXX"
+vpc_cidr          = "172.31.0.0/16"
+public_subnet_ids = ["subnet-XXXXXXXXXXXXXXXXX", "subnet-XXXXXXXXXXXXXXXXX"]
+domain_name       = "channels.yourdomain.com"
+route53_zone_id   = "Z0123456789ABCDEF"
+container_image   = "public.ecr.aws/w5h5k2p1/openzeppelin-relayer-channels:mainnet-1.3.39"
+stellar_network   = "mainnet"
+```
+
+For secrets, use environment variables instead of writing them to the file:
+
+```bash
+export TF_VAR_relayer_api_key="your-api-key"
+export TF_VAR_channels_admin_secret="your-admin-secret"
+```
+
+### Step 4: Configure Remote State (Recommended)
+
+For production deployments, configure an S3 backend for Terraform state. Uncomment and edit the `backend "s3"` block in `versions.tf`:
+
+```hcl
+backend "s3" {
+  bucket         = "your-terraform-state-bucket"
+  key            = "relayer-channels/terraform.tfstate"
+  region         = "us-east-1"
+  dynamodb_table = "terraform-locks"   # optional, for state locking
+  encrypt        = true
+}
+```
+
+Create the S3 bucket and (optionally) DynamoDB table beforehand:
+
+```bash
+aws s3 mb s3://your-terraform-state-bucket --region us-east-1
+aws s3api put-bucket-versioning --bucket your-terraform-state-bucket --versioning-configuration Status=Enabled
+```
+
+### Step 5: Deploy
+
+```bash
+# Initialize Terraform (downloads providers and modules)
+terraform init
+
+# Preview what will be created
+terraform plan
+
+# Deploy (type 'yes' when prompted)
+terraform apply
+```
+
+The initial deployment takes approximately 10-15 minutes. The longest steps are:
+- ACM certificate DNS validation (~2-5 min)
+- ElastiCache Redis cluster creation (~5-8 min)
+- ECS service stabilization (~2-3 min)
+
+### Step 6: Verify the Deployment
+
+Once `terraform apply` completes, verify the service is running:
+
+```bash
+# Check the outputs
+terraform output
+
+# Test the health endpoint
+curl https://<your-domain>/api/v1/health
+
+# Verify ECS tasks are running
+aws ecs list-tasks --cluster $(terraform output -raw ecs_cluster_name) \
+  --service-name $(terraform output -raw ecs_service_name)
+```
+
+### Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| ACM certificate stuck in `PENDING_VALIDATION` | DNS validation record not propagated | Verify the CNAME record exists in Route53; wait up to 5 min for propagation |
+| ECS tasks failing to start | Container image pull errors | Verify `container_image` is accessible; check ECS task logs in CloudWatch |
+| ALB returning 502/503 | Tasks not yet healthy | Wait 2-3 min for health checks to pass; check container logs |
+| Redis connection refused | Security group misconfiguration | Verify ECS tasks and Redis are in the same VPC; check security group rules |
+| `Error: Cloudflare provider configuration` | Cloudflare provider required even when disabled | This is expected — Terraform requires the provider block. Set `cloudflare_api_token = ""` |
+
+To view ECS task logs:
+
+```bash
+aws logs tail /ecs/relayer-channels --follow
+```
 
 ## Post-Deploy Steps
 
