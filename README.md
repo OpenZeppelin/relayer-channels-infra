@@ -580,6 +580,228 @@ aws logs tail /ecs/relayer-channels --follow
 
 3. **Update secrets** — after initial deploy, update SSM parameters directly in the AWS console or CLI. The module uses `ignore_changes` on secret values to prevent Terraform from overwriting manual updates.
 
+## Channel Management (oz-channels CLI)
+
+After deploying the infrastructure, use the `oz-channels` CLI to manage channel accounts, submit transactions, and operate the service. The CLI lives in the [ops-toolkit](https://github.com/OpenZeppelin/ops-toolkit) monorepo.
+
+### Install the CLI
+
+```bash
+git clone git@github.com:OpenZeppelin/ops-toolkit.git
+cd ops-toolkit
+bun install
+cd packages/oz-channels
+bun link
+
+# Verify
+oz-channels --help
+```
+
+> Requires [Bun](https://bun.sh) runtime (Node.js 22+ compatible).
+
+### Configure a Profile
+
+Profiles store connection settings per environment. Create one for your deployed service:
+
+```bash
+oz-channels profile init production
+```
+
+You'll be prompted for:
+- **Channels service URL** — your deployed domain (e.g. `https://channels.blockdaemon.com`)
+- **API key** — the `relayer_api_key` you set during Terraform deployment
+- **Plugin ID** — `channels` (for relayer-routed mode) or leave empty for direct HTTP
+- **Admin secret** — the `channels_admin_secret` from Terraform (required for management operations)
+- **Network** — `mainnet` or `testnet`
+
+Or configure manually in `~/.config/oz-channels/config.yaml`:
+
+```yaml
+default: production
+profiles:
+  production:
+    url: https://channels.blockdaemon.com
+    api_key: your-api-key
+    plugin_id: channels
+    admin_secret: your-admin-secret
+    network: mainnet
+    protected: true    # requires confirmation for write operations
+```
+
+You can also override per-command with environment variables:
+
+```bash
+OZ_CHANNELS_URL=https://channels.blockdaemon.com
+OZ_CHANNELS_API_KEY=your-api-key
+OZ_CHANNELS_ADMIN_SECRET=your-admin-secret
+```
+
+### Verify Connectivity
+
+```bash
+oz-channels health -p production
+```
+
+### Create Channel Accounts (Bootstrap)
+
+The `bootstrap` command provisions channel accounts at scale in three phases:
+
+1. **Preflight Audit** — checks which signers, relayers, and on-chain accounts already exist (parallel)
+2. **Provisioning** — creates signers (random keypairs) and relayers (sequential)
+3. **Funding** — creates on-chain Stellar accounts via a funding relayer (sequential)
+
+#### Preview first (dry run)
+
+Always preview before creating accounts:
+
+```bash
+oz-channels bootstrap --to 50 --dry-run -p production
+```
+
+#### Create accounts
+
+```bash
+# Create channel accounts 1-50
+oz-channels bootstrap --to 50 -p production
+
+# Scale up later: add accounts 51-100
+oz-channels bootstrap --from 51 --to 100 -p production
+
+# Custom funding amount (XLM per account)
+oz-channels bootstrap --to 50 --starting-balance 5 -p production
+```
+
+#### Audit existing accounts
+
+Check the state of existing accounts without making changes:
+
+```bash
+oz-channels bootstrap --to 100 --audit -p production
+```
+
+#### Bootstrap options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--from <n>` | 1 | Starting slot number |
+| `--to <n>` | *required* | Ending slot number |
+| `--funding-relayer <id>` | `channels-fund` | Relayer used for on-chain funding |
+| `--starting-balance <xlm>` | 2 | XLM per account |
+| `--prefix <string>` | `channel-` | Slot name prefix |
+| `--padding <n>` | 4 | Zero-padding width (e.g. `channel-0001`) |
+| `--concurrency <n>` | 10 | Parallel preflight operations |
+| `--delay-ms <n>` | 100 | Delay between sequential ops |
+| `--audit` | false | Report issues only, no changes |
+| `--dry-run` | false | Preview planned changes |
+| `--verbose` | false | Per-account output |
+| `--allow-gaps` | false | Allow gaps in slot sequence |
+
+### Manage Channel Pool
+
+List, add, or remove channel relayer IDs from the active pool:
+
+```bash
+# List active channel accounts
+oz-channels channels list -p production
+
+# Add a single channel to the pool
+oz-channels channels add channel-0051 -p production
+
+# Remove a channel from the pool
+oz-channels channels remove channel-0001 -p production
+
+# Replace the entire pool (with confirmation prompt)
+oz-channels channels set channel-0001 channel-0002 channel-0003 -p production
+```
+
+### Manage Fee Limits
+
+Control per-API-key fee limits (in stroops):
+
+```bash
+# Check fee consumption for an API key
+oz-channels fee usage <api-key> -p production
+
+# Get current fee limit
+oz-channels fee limit <api-key> -p production
+
+# Set a fee limit (in stroops)
+oz-channels fee set-limit <api-key> 1000000000 -p production
+
+# Remove a custom fee limit
+oz-channels fee delete-limit <api-key> -p production
+```
+
+### Submit Transactions
+
+```bash
+# Submit a signed XDR transaction
+oz-channels submit xdr <base64-xdr> -p production
+
+# Submit from file
+oz-channels submit xdr --file tx.xdr -p production
+
+# Submit and wait for confirmation
+oz-channels submit xdr <base64-xdr> --wait --timeout 60 -p production
+
+# Submit a Soroban function call with auth
+oz-channels submit func-auth --func <base64-func-xdr> --auth <auth-xdr> -p production
+```
+
+### Run Smoke Tests
+
+Validate the deployment end-to-end with real on-chain transactions:
+
+```bash
+# Deploy smoke contract (testnet only)
+oz-channels smoke setup -p staging
+
+# List available tests
+oz-channels smoke list
+
+# Run all smoke tests
+oz-channels smoke run -p staging
+
+# Run a specific test
+oz-channels smoke run --test-id xdr-payment -p staging
+
+# Stress test with concurrency
+oz-channels smoke run --concurrency 5 -p staging
+```
+
+Available test IDs:
+
+| Test ID | Description |
+|---------|-------------|
+| `xdr-payment` | Signed XDR self-payment |
+| `xdr-unsigned-soroban` | Unsigned Soroban XDR with signed auth (smart wallet flow) |
+| `func-auth-no-auth` | `no_auth_bump(42)` call |
+| `func-auth-address-auth` | `write_with_address_auth(777)` call |
+
+### Typical Deployment + Management Workflow
+
+```
+1. Deploy infrastructure          →  terraform apply
+2. Verify service is running      →  oz-channels health -p production
+3. Preview channel creation       →  oz-channels bootstrap --to 50 --dry-run -p production
+4. Create channel accounts        →  oz-channels bootstrap --to 50 -p production
+5. Verify channels are active     →  oz-channels channels list -p production
+6. Run smoke tests (testnet)      →  oz-channels smoke run -p staging
+7. Submit transactions            →  oz-channels submit xdr <xdr> -p production
+8. Scale up when needed           →  oz-channels bootstrap --from 51 --to 100 -p production
+9. Monitor fee usage              →  oz-channels fee usage <api-key> -p production
+```
+
+### CLI Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General error (API error, network failure) |
+| 2 | Invalid usage (bad arguments, missing flags) |
+| 3 | Authentication failure |
+| 4 | Resource not found |
+
 ## Security Notes
 
 - All secrets are stored in AWS SSM Parameter Store as `SecureString`
