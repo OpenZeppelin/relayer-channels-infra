@@ -652,15 +652,14 @@ container_environment = [
 
 ## Channel Management (oz-channels CLI)
 
-After deploying the infrastructure, use the `oz-channels` CLI to manage channel accounts, submit transactions, and operate the service. The CLI lives in the [ops-toolkit](https://github.com/OpenZeppelin/ops-toolkit) monorepo.
+After deploying the infrastructure, use the `oz-channels` CLI (included in the `cli/` directory of this repo) to manage channel accounts, submit transactions, and operate the service.
 
 ### Install the CLI
 
 ```bash
-git clone git@github.com:OpenZeppelin/ops-toolkit.git
-cd ops-toolkit
+# From the root of this repo
+cd cli
 bun install
-cd packages/oz-channels
 bun link
 
 # Verify
