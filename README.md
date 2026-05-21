@@ -580,6 +580,76 @@ aws logs tail /ecs/relayer-channels --follow
 
 3. **Update secrets** — after initial deploy, update SSM parameters directly in the AWS console or CLI. The module uses `ignore_changes` on secret values to prevent Terraform from overwriting manual updates.
 
+## Using Private RPC Endpoints
+
+By default, the relayer uses public Stellar RPC endpoints:
+
+| Network | Soroban RPC (default) | Horizon API (default) |
+|---------|----------------------|----------------------|
+| `mainnet` | `https://soroban.stellar.org` | `https://horizon.stellar.org` |
+| `testnet` | `https://soroban-testnet.stellar.org` | `https://horizon-testnet.stellar.org` |
+
+For production deployments, you should override these with private/dedicated RPC endpoints (e.g. from Blockdaemon, QuickNode, etc.) for better reliability, rate limits, and performance.
+
+### Option 1: Custom network config file (recommended)
+
+Create a custom Stellar network configuration that overrides the built-in defaults. Place a JSON file in the `config/networks/` directory that ships with your container image:
+
+```json
+{
+  "type": "stellar",
+  "network": "mainnet",
+  "rpc_urls": ["https://your-private-soroban-rpc.example.com"],
+  "horizon_url": "https://your-private-horizon.example.com",
+  "passphrase": "Public Global Stellar Network ; September 2015",
+  "average_blocktime_ms": 5000,
+  "is_testnet": false
+}
+```
+
+For testnet:
+
+```json
+{
+  "type": "stellar",
+  "network": "testnet",
+  "rpc_urls": ["https://your-private-soroban-testnet-rpc.example.com"],
+  "horizon_url": "https://your-private-horizon-testnet.example.com",
+  "passphrase": "Test SDF Network ; September 2015",
+  "average_blocktime_ms": 5000,
+  "is_testnet": true
+}
+```
+
+Place this file at `config/networks/stellar-mainnet.json` (or any `.json` filename) inside your container image. The relayer loads all network files from this directory at startup and merges them with the built-in defaults — your custom config takes precedence.
+
+### Option 2: Per-relayer custom RPC URLs via API
+
+After deployment, you can set `custom_rpc_urls` on individual relayers through the Relayer API. This overrides the network-level RPC for that specific relayer:
+
+```bash
+curl -X PATCH https://<your-domain>/api/v1/relayers/<relayer-id> \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{
+    "custom_rpc_urls": [
+      { "url": "https://your-private-soroban-rpc.example.com" }
+    ]
+  }'
+```
+
+### Option 3: Container environment variable override
+
+If you need a quick override without rebuilding the container image, use the `container_environment` Terraform variable to inject RPC-related environment variables:
+
+```hcl
+container_environment = [
+  { name = "STELLAR_HORIZON_URL", value = "https://your-private-horizon.example.com" },
+]
+```
+
+> **Note:** The `container_environment` approach only works for environment variables that the relayer application reads. The primary mechanism for RPC configuration is the network config file (Option 1) or the API (Option 2). Check the [OpenZeppelin Relayer documentation](https://github.com/OpenZeppelin/openzeppelin-relayer) for the full list of supported environment variables.
+
 ## Channel Management (oz-channels CLI)
 
 After deploying the infrastructure, use the `oz-channels` CLI to manage channel accounts, submit transactions, and operate the service. The CLI lives in the [ops-toolkit](https://github.com/OpenZeppelin/ops-toolkit) monorepo.
