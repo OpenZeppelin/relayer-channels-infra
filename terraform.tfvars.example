@@ -16,7 +16,7 @@ environment = "stg"
 # Networking
 # ---------------------------------------------------------------------------
 vpc_id            = "vpc-XXXXXXXXXXXXXXXXX"
-vpc_cidr          = "172.31.0.0/16"
+vpc_cidr          = "172.31.0.0/16" # this ia an example CIDR
 public_subnet_ids = ["subnet-XXXXXXXXXXXXXXXXX", "subnet-XXXXXXXXXXXXXXXXX"]
 
 # ---------------------------------------------------------------------------

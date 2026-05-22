@@ -268,7 +268,7 @@ locals {
   ] : []
 
   # User-provided values override managed ones
-  user_env_keys  = { for e in var.container_environment : e.name => true }
+  user_env_keys = { for e in var.container_environment : e.name => true }
   final_environment = concat(
     [for e in local.managed_environment : e if !lookup(local.user_env_keys, e.name, false)],
     local.managed_environment_optional,

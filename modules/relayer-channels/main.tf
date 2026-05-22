@@ -21,14 +21,14 @@ locals {
   container_port = var.container_port
 
   # Smart defaults based on environment
-  desired_count_effective            = var.desired_count != null ? var.desired_count : (local.is_prod ? 2 : 1)
-  autoscaling_min_effective          = var.autoscaling_min_capacity != null ? var.autoscaling_min_capacity : local.desired_count_effective
-  autoscaling_max_effective          = var.autoscaling_max_capacity != null ? var.autoscaling_max_capacity : (local.is_prod ? 10 : 4)
-  redis_node_type_effective          = var.redis_node_type != null ? var.redis_node_type : (local.is_prod ? "cache.r7g.large" : "cache.t4g.medium")
-  redis_num_clusters_effective       = var.redis_num_cache_clusters != null ? var.redis_num_cache_clusters : (local.is_prod ? 2 : 1)
-  alb_deletion_protection_effective  = var.alb_deletion_protection != null ? var.alb_deletion_protection : local.is_prod
-  log_retention_effective            = var.log_retention_days != null ? var.log_retention_days : (local.is_prod ? 30 : 7)
-  task_log_retention_effective       = var.task_log_retention_days != null ? var.task_log_retention_days : (local.is_prod ? 365 : 7)
+  desired_count_effective           = var.desired_count != null ? var.desired_count : (local.is_prod ? 2 : 1)
+  autoscaling_min_effective         = var.autoscaling_min_capacity != null ? var.autoscaling_min_capacity : local.desired_count_effective
+  autoscaling_max_effective         = var.autoscaling_max_capacity != null ? var.autoscaling_max_capacity : (local.is_prod ? 10 : 4)
+  redis_node_type_effective         = var.redis_node_type != null ? var.redis_node_type : (local.is_prod ? "cache.r7g.large" : "cache.t4g.medium")
+  redis_num_clusters_effective      = var.redis_num_cache_clusters != null ? var.redis_num_cache_clusters : (local.is_prod ? 2 : 1)
+  alb_deletion_protection_effective = var.alb_deletion_protection != null ? var.alb_deletion_protection : local.is_prod
+  log_retention_effective           = var.log_retention_days != null ? var.log_retention_days : (local.is_prod ? 30 : 7)
+  task_log_retention_effective      = var.task_log_retention_days != null ? var.task_log_retention_days : (local.is_prod ? 365 : 7)
 
   # Container image: use provided or fallback to ECR
   manage_ecr      = var.container_image == ""

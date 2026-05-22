@@ -367,7 +367,7 @@ Ensure you have the following in your AWS account before starting:
      --query "Subnets[*].[SubnetId,AvailabilityZone]" --output table
    ```
 
-3. **A Route53 hosted zone** for the domain you want to use (e.g. `channels.blockdaemon.com`):
+3. **A Route53 hosted zone** for the domain you want to use (e.g. `channels.example.com`):
    ```bash
    aws route53 list-hosted-zones --query "HostedZones[*].[Id,Name]" --output table
    ```
@@ -579,6 +579,337 @@ aws logs tail /ecs/relayer-channels --follow
    ```
 
 3. **Update secrets** — after initial deploy, update SSM parameters directly in the AWS console or CLI. The module uses `ignore_changes` on secret values to prevent Terraform from overwriting manual updates.
+
+## Using Private RPC Endpoints
+
+By default, the relayer uses public Stellar RPC endpoints:
+
+| Network | Soroban RPC (default) | Horizon API (default) |
+|---------|----------------------|----------------------|
+| `mainnet` | `https://soroban.stellar.org` | `https://horizon.stellar.org` |
+| `testnet` | `https://soroban-testnet.stellar.org` | `https://horizon-testnet.stellar.org` |
+
+For production deployments, you should override these with private/dedicated RPC endpoints (e.g. from Blockdaemon, QuickNode, etc.) for better reliability, rate limits, and performance.
+
+### Option 1: Custom network config file (recommended)
+
+Create a custom Stellar network configuration that overrides the built-in defaults. Place a JSON file in the `config/networks/` directory that ships with your container image:
+
+```json
+{
+  "type": "stellar",
+  "network": "mainnet",
+  "rpc_urls": ["https://your-private-soroban-rpc.example.com"],
+  "horizon_url": "https://your-private-horizon.example.com",
+  "passphrase": "Public Global Stellar Network ; September 2015",
+  "average_blocktime_ms": 5000,
+  "is_testnet": false
+}
+```
+
+For testnet:
+
+```json
+{
+  "type": "stellar",
+  "network": "testnet",
+  "rpc_urls": ["https://your-private-soroban-testnet-rpc.example.com"],
+  "horizon_url": "https://your-private-horizon-testnet.example.com",
+  "passphrase": "Test SDF Network ; September 2015",
+  "average_blocktime_ms": 5000,
+  "is_testnet": true
+}
+```
+
+Place this file at `config/networks/stellar-mainnet.json` (or any `.json` filename) inside your container image. The relayer loads all network files from this directory at startup and merges them with the built-in defaults — your custom config takes precedence.
+
+### Option 2: Per-relayer custom RPC URLs via API
+
+After deployment, you can set `custom_rpc_urls` on individual relayers through the Relayer API. This overrides the network-level RPC for that specific relayer:
+
+```bash
+curl -X PATCH https://<your-domain>/api/v1/relayers/<relayer-id> \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{
+    "custom_rpc_urls": [
+      { "url": "https://your-private-soroban-rpc.example.com" }
+    ]
+  }'
+```
+
+### Option 3: Container environment variable override
+
+If you need a quick override without rebuilding the container image, use the `container_environment` Terraform variable to inject RPC-related environment variables:
+
+```hcl
+container_environment = [
+  { name = "STELLAR_HORIZON_URL", value = "https://your-private-horizon.example.com" },
+]
+```
+
+> **Note:** The `container_environment` approach only works for environment variables that the relayer application reads. The primary mechanism for RPC configuration is the network config file (Option 1) or the API (Option 2). Check the [OpenZeppelin Relayer documentation](https://github.com/OpenZeppelin/openzeppelin-relayer) for the full list of supported environment variables.
+
+## Channel Management (oz-channels CLI)
+
+After deploying the infrastructure, use the `oz-channels` CLI (included in the `cli/` directory of this repo) to manage channel accounts, submit transactions, and operate the service.
+
+### Install the CLI
+
+```bash
+# From the root of this repo
+cd cli
+bun install
+bun run build
+
+# Link the CLIs globally
+cd packages/oz-channels && bun link
+cd ../oz-relayer && bun link
+
+# Verify
+oz-channels --help
+oz-relayer --help
+```
+
+> Requires [Bun](https://bun.sh) runtime (Node.js 22+ compatible).
+
+### Configure a Profile
+
+Profiles store connection settings per environment. Create one for your deployed service:
+
+```bash
+oz-channels profile init production
+```
+
+You'll be prompted for:
+- **Channels service URL** — your deployed domain (e.g. `https://channels.example.com`)
+- **API key** — the `relayer_api_key` you set during Terraform deployment
+- **Plugin ID** — `channels` (for relayer-routed mode) or leave empty for direct HTTP
+- **Admin secret** — the `channels_admin_secret` from Terraform (required for management operations)
+- **Network** — `mainnet` or `testnet`
+
+Or configure manually in `~/.config/oz-channels/config.yaml`:
+
+```yaml
+default: production
+profiles:
+  production:
+    url: https://channels.example.com
+    api_key: your-api-key
+    plugin_id: channels
+    admin_secret: your-admin-secret
+    network: mainnet
+    protected: true    # requires confirmation for write operations
+```
+
+You can also override per-command with environment variables:
+
+```bash
+OZ_CHANNELS_URL=https://channels.example.com
+OZ_CHANNELS_API_KEY=your-api-key
+OZ_CHANNELS_ADMIN_SECRET=your-admin-secret
+```
+
+### Verify Connectivity
+
+```bash
+oz-channels health -p production
+```
+
+### Create Channel Accounts (Bootstrap)
+
+The `bootstrap` command provisions channel accounts at scale in three phases:
+
+1. **Preflight Audit** — checks which signers, relayers, and on-chain accounts already exist (parallel)
+2. **Provisioning** — creates signers (random keypairs) and relayers (sequential)
+3. **Funding** — creates on-chain Stellar accounts via a funding relayer (sequential)
+
+#### Preview first (dry run)
+
+Always preview before creating accounts:
+
+```bash
+oz-channels bootstrap --to 50 --dry-run -p production
+```
+
+#### Create accounts
+
+```bash
+# Create channel accounts 1-50
+oz-channels bootstrap --to 50 -p production
+
+# Scale up later: add accounts 51-100
+oz-channels bootstrap --from 51 --to 100 -p production
+
+# Custom funding amount (XLM per account)
+oz-channels bootstrap --to 50 --starting-balance 5 -p production
+```
+
+#### Audit existing accounts
+
+Check the state of existing accounts without making changes:
+
+```bash
+oz-channels bootstrap --to 100 --audit -p production
+```
+
+#### Bootstrap options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--from <n>` | 1 | Starting slot number |
+| `--to <n>` | *required* | Ending slot number |
+| `--funding-relayer <id>` | `channels-fund` | Relayer used for on-chain funding |
+| `--starting-balance <xlm>` | 2 | XLM per account |
+| `--prefix <string>` | `channel-` | Slot name prefix |
+| `--padding <n>` | 4 | Zero-padding width (e.g. `channel-0001`) |
+| `--concurrency <n>` | 10 | Parallel preflight operations |
+| `--delay-ms <n>` | 100 | Delay between sequential ops |
+| `--audit` | false | Report issues only, no changes |
+| `--dry-run` | false | Preview planned changes |
+| `--verbose` | false | Per-account output |
+| `--allow-gaps` | false | Allow gaps in slot sequence |
+
+#### Fallback: bulk-fund channels via existing channel as tx source
+
+When scaling the pool aggressively (e.g. 100 → 1000 channels), `oz-channels bootstrap` can fail to fund new accounts with `TRY_AGAIN_LATER` or `tx_bad_seq` from Horizon. This happens because every `createAccount` op uses `channels-fund` as the **tx source**, serializing all submissions on a single sequence number.
+
+`scripts/fund-new-channels.ts` is a fallback that routes the tx source through an existing funded channel (e.g. `channel-0001`) while keeping `channels-fund` as the **op source** — so the treasury still pays for the new accounts, but the per-tx sequence comes from a different account. It also batches up to 100 `createAccount` ops per transaction (Stellar protocol limit) so a 100→1000 scale-up fits in ~9 submissions.
+
+Like `bootstrap`, the script is **idempotent**: it preflights every slot via the relayer API + Horizon and skips any account that is already on-chain funded. Safe to re-run.
+
+```bash
+npx tsx scripts/fund-new-channels.ts \
+  --env mainnet \
+  --api-key <key> \
+  --source-relayer channel-0001 \
+  --fund-relayer channels-fund \
+  --from 101 --to 1000 \
+  --starting-balance 2 \
+  --report fund-report.json
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--env <staging\|testnet\|mainnet>` | `mainnet` | Channels API + Horizon to target |
+| `--api-key <key>` | *required* | Channels API key |
+| `--source-relayer <id>` | `channel-0001` | Tx source — an already-funded channel that provides the sequence + fee |
+| `--fund-relayer <id>` | `channels-fund` | Op source — the treasury that funds each new account |
+| `--from <n>` / `--to <n>` | — / *required* | Slot range (inclusive) |
+| `--prefix <string>` / `--padding <n>` | `channel-` / 4 | Slot naming, matches `bootstrap` |
+| `--starting-balance <xlm>` | 2 | XLM per new account |
+| `--batch-size <n>` | 100 | Ops per transaction (1–100) |
+| `--delay-ms <n>` | 1000 | Pause between batches |
+| `--report <path>` | — | Write JSON report (preflight + per-batch results) |
+| `--dry-run` | false | Build txs but do not submit |
+
+**When to reach for this:** only after `bootstrap` reports persistent funding failures. For routine scaling, use `oz-channels bootstrap`.
+
+### Manage Channel Pool
+
+List, add, or remove channel relayer IDs from the active pool:
+
+```bash
+# List active channel accounts
+oz-channels channels list -p production
+
+# Add a single channel to the pool
+oz-channels channels add channel-0051 -p production
+
+# Remove a channel from the pool
+oz-channels channels remove channel-0001 -p production
+
+# Replace the entire pool (with confirmation prompt)
+oz-channels channels set channel-0001 channel-0002 channel-0003 -p production
+```
+
+### Manage Fee Limits
+
+Control per-API-key fee limits (in stroops):
+
+```bash
+# Check fee consumption for an API key
+oz-channels fee usage <api-key> -p production
+
+# Get current fee limit
+oz-channels fee limit <api-key> -p production
+
+# Set a fee limit (in stroops)
+oz-channels fee set-limit <api-key> 1000000000 -p production
+
+# Remove a custom fee limit
+oz-channels fee delete-limit <api-key> -p production
+```
+
+### Submit Transactions
+
+```bash
+# Submit a signed XDR transaction
+oz-channels submit xdr <base64-xdr> -p production
+
+# Submit from file
+oz-channels submit xdr --file tx.xdr -p production
+
+# Submit and wait for confirmation
+oz-channels submit xdr <base64-xdr> --wait --timeout 60 -p production
+
+# Submit a Soroban function call with auth
+oz-channels submit func-auth --func <base64-func-xdr> --auth <auth-xdr> -p production
+```
+
+### Run Smoke Tests
+
+Validate the deployment end-to-end with real on-chain transactions:
+
+```bash
+# Deploy smoke contract (testnet only)
+oz-channels smoke setup -p staging
+
+# List available tests
+oz-channels smoke list
+
+# Run all smoke tests
+oz-channels smoke run -p staging
+
+# Run a specific test
+oz-channels smoke run --test-id xdr-payment -p staging
+
+# Stress test with concurrency
+oz-channels smoke run --concurrency 5 -p staging
+```
+
+Available test IDs:
+
+| Test ID | Description |
+|---------|-------------|
+| `xdr-payment` | Signed XDR self-payment |
+| `xdr-unsigned-soroban` | Unsigned Soroban XDR with signed auth (smart wallet flow) |
+| `func-auth-no-auth` | `no_auth_bump(42)` call |
+| `func-auth-address-auth` | `write_with_address_auth(777)` call |
+
+### Typical Deployment + Management Workflow
+
+```
+1. Deploy infrastructure          →  terraform apply
+2. Verify service is running      →  oz-channels health -p production
+3. Preview channel creation       →  oz-channels bootstrap --to 50 --dry-run -p production
+4. Create channel accounts        →  oz-channels bootstrap --to 50 -p production
+5. Verify channels are active     →  oz-channels channels list -p production
+6. Run smoke tests (testnet)      →  oz-channels smoke run -p staging
+7. Submit transactions            →  oz-channels submit xdr <xdr> -p production
+8. Scale up when needed           →  oz-channels bootstrap --from 51 --to 100 -p production
+9. Monitor fee usage              →  oz-channels fee usage <api-key> -p production
+```
+
+### CLI Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General error (API error, network failure) |
+| 2 | Invalid usage (bad arguments, missing flags) |
+| 3 | Authentication failure |
+| 4 | Resource not found |
 
 ## Security Notes
 
