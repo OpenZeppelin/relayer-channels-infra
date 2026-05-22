@@ -15,7 +15,8 @@ jobs:
     name: semgrep/ci
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
+      contents: read         # required by actions/checkout on private repos
+      security-events: write # required for SARIF upload
     container:
       image: semgrep/semgrep@sha256:85f9de554201cc891c470774bb93a7f4faf41ea198ddccc34a855b53f7a51443  # v1.127.1
 
