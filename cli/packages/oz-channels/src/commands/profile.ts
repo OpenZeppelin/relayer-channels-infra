@@ -1,6 +1,6 @@
+import { isProtectedName } from '@internal/cli-config';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import { isProtectedName } from '../cli-config/index.js';
 import { type CommandDeps, defaultDeps } from '../deps.js';
 
 /**

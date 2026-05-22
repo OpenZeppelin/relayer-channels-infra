@@ -1,37 +1,29 @@
 import {
   type BaseProfile,
   type ResolvedConfig as BaseResolvedConfig,
+  type ConfigManager,
   createConfigManager,
-} from '../cli-config/index.js';
+} from '@internal/cli-config';
 
 /**
- * oz-channels specific profile extending the base profile.
+ * oz-relayer specific profile extending the base profile.
  */
-export interface ChannelsProfile extends BaseProfile {
-  plugin_id?: string;
-  admin_secret?: string;
-  network?: 'testnet' | 'mainnet' | 'futurenet';
-  test_account?: string;
-  smoke_contract?: string;
+export interface RelayerProfile extends BaseProfile {
+  default_relayer?: string;
 }
 
 /**
- * Resolved config with oz-channels specific fields.
+ * Resolved config with oz-relayer specific fields.
  */
-export interface ResolvedConfig extends BaseResolvedConfig<ChannelsProfile> {
-  pluginId?: string;
-  adminSecret?: string;
-  network?: 'testnet' | 'mainnet' | 'futurenet';
-  testAccount?: string;
-  smokeContract?: string;
+export interface ResolvedConfig extends BaseResolvedConfig<RelayerProfile> {
+  defaultRelayer?: string;
 }
 
-const configManager = createConfigManager<ChannelsProfile>({
-  cliName: 'oz-channels',
-  envPrefix: 'OZ_CHANNELS',
+const configManager = createConfigManager<RelayerProfile>({
+  cliName: 'oz-relayer',
+  envPrefix: 'OZ_RELAYER',
   envMapping: {
-    plugin_id: 'PLUGIN_ID',
-    admin_secret: 'ADMIN_SECRET',
+    default_relayer: 'DEFAULT_RELAYER',
   },
 });
 
@@ -48,25 +40,18 @@ export function resolveConfig(args: {
   profile?: string;
   url?: string;
   'api-key'?: string;
-  'plugin-id'?: string;
-  'admin-secret'?: string;
 }): ResolvedConfig | null {
   const resolved = configManager.resolveConfig(args);
   if (!resolved) {
     return null;
   }
 
-  // Check for additional fields from env
-  const envPluginId = process.env.OZ_CHANNELS_PLUGIN_ID;
-  const envAdminSecret = process.env.OZ_CHANNELS_ADMIN_SECRET;
+  // Check for default relayer from env
+  const envDefaultRelayer = process.env.OZ_RELAYER_DEFAULT_RELAYER;
 
   return {
     ...resolved,
-    pluginId: args['plugin-id'] || envPluginId || resolved.profile?.plugin_id,
-    adminSecret: args['admin-secret'] || envAdminSecret || resolved.profile?.admin_secret,
-    network: resolved.profile?.network,
-    testAccount: resolved.profile?.test_account,
-    smokeContract: resolved.profile?.smoke_contract,
+    defaultRelayer: envDefaultRelayer || resolved.profile?.default_relayer,
   };
 }
 
@@ -91,7 +76,7 @@ export const saveProfile = configManager.saveProfile;
 export const updateProfile = configManager.updateProfile;
 
 /**
- * Delete a profile from the user config file.
+ * Delete a profile.
  */
 export const deleteProfile = configManager.deleteProfile;
 
@@ -126,4 +111,4 @@ export const getConfigPaths = configManager.getConfigPaths;
 export const isProtected = configManager.isProtected;
 
 // Re-export types for convenience
-export type { ChannelsProfile as Profile };
+export type { RelayerProfile as Profile };

@@ -660,10 +660,15 @@ After deploying the infrastructure, use the `oz-channels` CLI (included in the `
 # From the root of this repo
 cd cli
 bun install
-bun link
+bun run build
+
+# Link the CLIs globally
+cd packages/oz-channels && bun link
+cd ../oz-relayer && bun link
 
 # Verify
 oz-channels --help
+oz-relayer --help
 ```
 
 > Requires [Bun](https://bun.sh) runtime (Node.js 22+ compatible).

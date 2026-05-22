@@ -5,4 +5,4 @@ export {
   promptConfirm,
   promptPassword,
   promptSelect,
-} from '../cli-config/index.js';
+} from '@internal/cli-config';

@@ -8,5 +8,5 @@ export {
   output,
   success,
   warn,
-} from '../cli-config/index.js';
-export type { OutputOptions } from '../cli-config/index.js';
+} from '@internal/cli-config';
+export type { OutputOptions } from '@internal/cli-config';

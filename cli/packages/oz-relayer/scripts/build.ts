@@ -1,7 +1,7 @@
 import { cp, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const ROOT = import.meta.dir + '/..';
+const ROOT = `${import.meta.dir}/..`;
 const DIST = join(ROOT, 'dist');
 
 // Bundle the CLI
@@ -25,13 +25,5 @@ console.log(`Bundled ${result.outputs.length} file(s)`);
 // Copy static files
 await cp(join(ROOT, 'src/shim.js'), join(DIST, 'shim.js'));
 await cp(join(ROOT, 'AGENTS.md'), join(DIST, 'AGENTS.md'));
-
-// Copy assets if they exist
-try {
-  await mkdir(join(DIST, 'assets'), { recursive: true });
-  await cp(join(ROOT, 'src/assets'), join(DIST, 'assets'), { recursive: true });
-} catch {
-  // No assets to copy
-}
 
 console.log('Build complete');

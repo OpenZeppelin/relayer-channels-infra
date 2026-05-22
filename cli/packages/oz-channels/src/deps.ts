@@ -5,9 +5,9 @@
  * making them testable without mock.module().
  */
 
+import { confirmProtectedOperation } from '@internal/cli-config';
 import { createClient } from './api/client.js';
 import type { ApiClient } from './api/client.js';
-import { confirmProtectedOperation } from './cli-config/index.js';
 import {
   deleteProfile,
   getConfigPaths,
