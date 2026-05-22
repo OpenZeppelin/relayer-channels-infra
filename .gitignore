@@ -50,7 +50,6 @@ terraform.rc
 # channels CLI
 dist/
 node_modules/
-bun.lock
 .turbo/
 
 # Secrets & environment files
