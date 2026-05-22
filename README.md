@@ -770,6 +770,41 @@ oz-channels bootstrap --to 100 --audit -p production
 | `--verbose` | false | Per-account output |
 | `--allow-gaps` | false | Allow gaps in slot sequence |
 
+#### Fallback: bulk-fund channels via existing channel as tx source
+
+When scaling the pool aggressively (e.g. 100 → 1000 channels), `oz-channels bootstrap` can fail to fund new accounts with `TRY_AGAIN_LATER` or `tx_bad_seq` from Horizon. This happens because every `createAccount` op uses `channels-fund` as the **tx source**, serializing all submissions on a single sequence number.
+
+`scripts/fund-new-channels.ts` is a fallback that routes the tx source through an existing funded channel (e.g. `channel-0001`) while keeping `channels-fund` as the **op source** — so the treasury still pays for the new accounts, but the per-tx sequence comes from a different account. It also batches up to 100 `createAccount` ops per transaction (Stellar protocol limit) so a 100→1000 scale-up fits in ~9 submissions.
+
+Like `bootstrap`, the script is **idempotent**: it preflights every slot via the relayer API + Horizon and skips any account that is already on-chain funded. Safe to re-run.
+
+```bash
+npx tsx scripts/fund-new-channels.ts \
+  --env mainnet \
+  --api-key <key> \
+  --source-relayer channel-0001 \
+  --fund-relayer channels-fund \
+  --from 101 --to 1000 \
+  --starting-balance 2 \
+  --report fund-report.json
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--env <staging\|testnet\|mainnet>` | `mainnet` | Channels API + Horizon to target |
+| `--api-key <key>` | *required* | Channels API key |
+| `--source-relayer <id>` | `channel-0001` | Tx source — an already-funded channel that provides the sequence + fee |
+| `--fund-relayer <id>` | `channels-fund` | Op source — the treasury that funds each new account |
+| `--from <n>` / `--to <n>` | — / *required* | Slot range (inclusive) |
+| `--prefix <string>` / `--padding <n>` | `channel-` / 4 | Slot naming, matches `bootstrap` |
+| `--starting-balance <xlm>` | 2 | XLM per new account |
+| `--batch-size <n>` | 100 | Ops per transaction (1–100) |
+| `--delay-ms <n>` | 1000 | Pause between batches |
+| `--report <path>` | — | Write JSON report (preflight + per-batch results) |
+| `--dry-run` | false | Build txs but do not submit |
+
+**When to reach for this:** only after `bootstrap` reports persistent funding failures. For routine scaling, use `oz-channels bootstrap`.
+
 ### Manage Channel Pool
 
 List, add, or remove channel relayer IDs from the active pool:
