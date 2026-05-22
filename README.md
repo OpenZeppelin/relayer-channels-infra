@@ -367,7 +367,7 @@ Ensure you have the following in your AWS account before starting:
      --query "Subnets[*].[SubnetId,AvailabilityZone]" --output table
    ```
 
-3. **A Route53 hosted zone** for the domain you want to use (e.g. `channels.blockdaemon.com`):
+3. **A Route53 hosted zone** for the domain you want to use (e.g. `channels.example.com`):
    ```bash
    aws route53 list-hosted-zones --query "HostedZones[*].[Id,Name]" --output table
    ```
@@ -682,7 +682,7 @@ oz-channels profile init production
 ```
 
 You'll be prompted for:
-- **Channels service URL** — your deployed domain (e.g. `https://channels.blockdaemon.com`)
+- **Channels service URL** — your deployed domain (e.g. `https://channels.example.com`)
 - **API key** — the `relayer_api_key` you set during Terraform deployment
 - **Plugin ID** — `channels` (for relayer-routed mode) or leave empty for direct HTTP
 - **Admin secret** — the `channels_admin_secret` from Terraform (required for management operations)
@@ -694,7 +694,7 @@ Or configure manually in `~/.config/oz-channels/config.yaml`:
 default: production
 profiles:
   production:
-    url: https://channels.blockdaemon.com
+    url: https://channels.example.com
     api_key: your-api-key
     plugin_id: channels
     admin_secret: your-admin-secret
@@ -705,7 +705,7 @@ profiles:
 You can also override per-command with environment variables:
 
 ```bash
-OZ_CHANNELS_URL=https://channels.blockdaemon.com
+OZ_CHANNELS_URL=https://channels.example.com
 OZ_CHANNELS_API_KEY=your-api-key
 OZ_CHANNELS_ADMIN_SECRET=your-admin-secret
 ```
