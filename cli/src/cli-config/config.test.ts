@@ -13,7 +13,7 @@ interface TestProfile extends BaseProfile {
   extra?: string;
 }
 
-const TEST_DIR = '/tmp/cli-config-test-' + Date.now();
+const TEST_DIR = `/tmp/cli-config-test-${Date.now()}`;
 const CLI_NAME = 'test-cli';
 const ENV_PREFIX = 'TEST_CLI';
 
@@ -49,7 +49,7 @@ describe('createConfigManager', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
     delete process.env[`${ENV_PREFIX}_URL`];
     delete process.env[`${ENV_PREFIX}_API_KEY`];
     delete process.env[`${ENV_PREFIX}_PROFILE`];
@@ -95,7 +95,7 @@ describe('resolveConfig', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
     delete process.env[`${ENV_PREFIX}_URL`];
     delete process.env[`${ENV_PREFIX}_API_KEY`];
     delete process.env[`${ENV_PREFIX}_PROFILE`];
@@ -113,9 +113,9 @@ describe('resolveConfig', () => {
     const config = manager.resolveConfig({});
 
     expect(config).not.toBeNull();
-    expect(config!.url).toBe('https://dev.example.com');
-    expect(config!.apiKey).toBe('dev-key');
-    expect(config!.profileName).toBe('dev');
+    expect(config?.url).toBe('https://dev.example.com');
+    expect(config?.apiKey).toBe('dev-key');
+    expect(config?.profileName).toBe('dev');
   });
 
   test('resolves config from environment variables', () => {
@@ -126,8 +126,8 @@ describe('resolveConfig', () => {
     const config = manager.resolveConfig({});
 
     expect(config).not.toBeNull();
-    expect(config!.url).toBe('https://env.example.com');
-    expect(config!.apiKey).toBe('env-key');
+    expect(config?.url).toBe('https://env.example.com');
+    expect(config?.apiKey).toBe('env-key');
   });
 
   test('resolves config from CLI args', () => {
@@ -138,8 +138,8 @@ describe('resolveConfig', () => {
     });
 
     expect(config).not.toBeNull();
-    expect(config!.url).toBe('https://cli.example.com');
-    expect(config!.apiKey).toBe('cli-key');
+    expect(config?.url).toBe('https://cli.example.com');
+    expect(config?.apiKey).toBe('cli-key');
   });
 
   test('precedence: CLI args override env vars override profile', () => {
@@ -159,13 +159,13 @@ describe('resolveConfig', () => {
       url: 'https://cli.example.com',
       'api-key': 'cli-key',
     });
-    expect(config1!.url).toBe('https://cli.example.com');
-    expect(config1!.apiKey).toBe('cli-key');
+    expect(config1?.url).toBe('https://cli.example.com');
+    expect(config1?.apiKey).toBe('cli-key');
 
     // Env overrides profile
     const config2 = manager.resolveConfig({});
-    expect(config2!.url).toBe('https://env.example.com');
-    expect(config2!.apiKey).toBe('env-key');
+    expect(config2?.url).toBe('https://env.example.com');
+    expect(config2?.apiKey).toBe('env-key');
   });
 
   test('returns null when URL or API key is missing', () => {
@@ -196,8 +196,8 @@ describe('resolveConfig', () => {
     const manager = createTestManager();
     const config = manager.resolveConfig({ profile: 'prod' });
 
-    expect(config!.profileName).toBe('prod');
-    expect(config!.url).toBe('https://prod.example.com');
+    expect(config?.profileName).toBe('prod');
+    expect(config?.url).toBe('https://prod.example.com');
   });
 
   test('uses profile specified by environment variable', () => {
@@ -213,8 +213,8 @@ describe('resolveConfig', () => {
     const manager = createTestManager();
     const config = manager.resolveConfig({});
 
-    expect(config!.profileName).toBe('prod');
-    expect(config!.url).toBe('https://prod.example.com');
+    expect(config?.profileName).toBe('prod');
+    expect(config?.url).toBe('https://prod.example.com');
   });
 
   test('falls back to default profile named "default"', () => {
@@ -227,7 +227,7 @@ describe('resolveConfig', () => {
     const manager = createTestManager();
     const config = manager.resolveConfig({});
 
-    expect(config!.profileName).toBe('default');
+    expect(config?.profileName).toBe('default');
   });
 
   test('resolves alias to actual profile name', () => {
@@ -243,8 +243,8 @@ describe('resolveConfig', () => {
     const manager = createTestManager();
     const config = manager.resolveConfig({ profile: 'dev' });
 
-    expect(config!.profileName).toBe('development');
-    expect(config!.url).toBe('https://dev.example.com');
+    expect(config?.profileName).toBe('development');
+    expect(config?.url).toBe('https://dev.example.com');
   });
 });
 
@@ -256,7 +256,7 @@ describe('getProfile', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('returns existing profile', () => {
@@ -270,9 +270,9 @@ describe('getProfile', () => {
     const profile = manager.getProfile('dev');
 
     expect(profile).not.toBeNull();
-    expect(profile!.url).toBe('https://dev.example.com');
-    expect(profile!.api_key).toBe('dev-key');
-    expect(profile!.extra).toBe('data');
+    expect(profile?.url).toBe('https://dev.example.com');
+    expect(profile?.api_key).toBe('dev-key');
+    expect(profile?.extra).toBe('data');
   });
 
   test('returns null for non-existent profile', () => {
@@ -302,7 +302,7 @@ describe('getProfile', () => {
     const profile = manager.getProfile('dev');
 
     expect(profile).not.toBeNull();
-    expect(profile!.url).toBe('https://dev.example.com');
+    expect(profile?.url).toBe('https://dev.example.com');
   });
 });
 
@@ -314,7 +314,7 @@ describe('listProfiles', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('returns empty array when no profiles', () => {
@@ -340,13 +340,13 @@ describe('listProfiles', () => {
 
     const devProfile = profiles.find((p) => p.name === 'dev');
     expect(devProfile).toBeDefined();
-    expect(devProfile!.isDefault).toBe(true);
-    expect(devProfile!.isProtected).toBe(false);
+    expect(devProfile?.isDefault).toBe(true);
+    expect(devProfile?.isProtected).toBe(false);
 
     const prodProfile = profiles.find((p) => p.name === 'prod');
     expect(prodProfile).toBeDefined();
-    expect(prodProfile!.isDefault).toBe(false);
-    expect(prodProfile!.isProtected).toBe(true); // 'prod' is auto-protected
+    expect(prodProfile?.isDefault).toBe(false);
+    expect(prodProfile?.isProtected).toBe(true); // 'prod' is auto-protected
   });
 });
 
@@ -358,7 +358,7 @@ describe('saveProfile', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('saves new profile', () => {
@@ -368,7 +368,7 @@ describe('saveProfile', () => {
 
     const profile = manager.getProfile('dev');
     expect(profile).not.toBeNull();
-    expect(profile!.url).toBe('https://dev.example.com');
+    expect(profile?.url).toBe('https://dev.example.com');
   });
 
   test('saves profile and sets as default', () => {
@@ -378,7 +378,7 @@ describe('saveProfile', () => {
 
     const profiles = manager.listProfiles();
     const devProfile = profiles.find((p) => p.name === 'dev');
-    expect(devProfile!.isDefault).toBe(true);
+    expect(devProfile?.isDefault).toBe(true);
   });
 
   test('overwrites existing profile', () => {
@@ -388,7 +388,7 @@ describe('saveProfile', () => {
     manager.saveProfile('dev', { url: 'https://new.example.com', api_key: 'new-key' });
 
     const profile = manager.getProfile('dev');
-    expect(profile!.url).toBe('https://new.example.com');
+    expect(profile?.url).toBe('https://new.example.com');
   });
 });
 
@@ -400,7 +400,7 @@ describe('updateProfile', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('updates profile with partial changes', () => {
@@ -416,9 +416,9 @@ describe('updateProfile', () => {
 
     expect(result).toBe(true);
     const profile = manager.getProfile('dev');
-    expect(profile!.url).toBe('https://dev.example.com'); // unchanged
-    expect(profile!.api_key).toBe('new-key'); // updated
-    expect(profile!.extra).toBe('original'); // unchanged
+    expect(profile?.url).toBe('https://dev.example.com'); // unchanged
+    expect(profile?.api_key).toBe('new-key'); // updated
+    expect(profile?.extra).toBe('original'); // unchanged
   });
 
   test('returns false for non-existent profile', () => {
@@ -438,7 +438,7 @@ describe('deleteProfile', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('deletes existing profile', () => {
@@ -489,7 +489,7 @@ describe('setDefaultProfile', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('sets existing profile as default', () => {
@@ -501,8 +501,8 @@ describe('setDefaultProfile', () => {
 
     expect(result).toBe(true);
     const profiles = manager.listProfiles();
-    expect(profiles.find((p) => p.name === 'prod')!.isDefault).toBe(true);
-    expect(profiles.find((p) => p.name === 'dev')!.isDefault).toBe(false);
+    expect(profiles.find((p) => p.name === 'prod')?.isDefault).toBe(true);
+    expect(profiles.find((p) => p.name === 'dev')?.isDefault).toBe(false);
   });
 
   test('returns false for non-existent profile', () => {
@@ -522,7 +522,7 @@ describe('aliases', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('setAlias creates alias for existing profile', () => {
@@ -596,7 +596,7 @@ describe('isProtected', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('returns true for auto-protected names (prod, production, mainnet, etc.)', () => {
@@ -683,7 +683,7 @@ describe('getConfigPaths', () => {
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('returns user config path', () => {
@@ -714,7 +714,7 @@ describe('loadConfig with project config', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = undefined;
   });
 
   test('merges user and project configs with project taking precedence', () => {
@@ -758,8 +758,8 @@ describe('loadConfig with project config', () => {
     expect(config.profiles['project-only']).toBeDefined();
 
     // Aliases are merged with project taking precedence
-    expect(config.aliases!.s).toBe('project-only');
-    expect(config.aliases!.u).toBe('user-only');
-    expect(config.aliases!.p).toBe('project-only');
+    expect(config.aliases?.s).toBe('project-only');
+    expect(config.aliases?.u).toBe('user-only');
+    expect(config.aliases?.p).toBe('project-only');
   });
 });

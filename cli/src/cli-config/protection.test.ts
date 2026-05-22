@@ -78,6 +78,8 @@ describe('isProfileProtected', () => {
   });
 
   test('explicit flag takes precedence over additional names', () => {
-    expect(isProfileProtected('staging', { url: '', api_key: '', protected: false }, ['staging'])).toBe(false);
+    expect(
+      isProfileProtected('staging', { url: '', api_key: '', protected: false }, ['staging']),
+    ).toBe(false);
   });
 });

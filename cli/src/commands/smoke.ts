@@ -17,7 +17,7 @@ import {
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { type CommandDeps, defaultDeps } from '../deps.js';
-import { ProgressBar } from '../utils/progress.js';
+import type { ProgressBar } from '../utils/progress.js';
 import { deployContract } from '../utils/stellar.js';
 
 /**
@@ -270,7 +270,9 @@ function createSetupCommand(deps: SmokeDeps) {
       const config = requireConfig(deps, args);
 
       if (!config.testAccount) {
-        deps.exitWithUsageError('No test_account in profile. Run `oz-channels profile init` first.');
+        deps.exitWithUsageError(
+          'No test_account in profile. Run `oz-channels profile init` first.',
+        );
       }
 
       const account = deps.getStellarAccount(config.testAccount);
@@ -400,11 +402,15 @@ function createRunCommand(deps: SmokeDeps) {
       const client = deps.createClient(config);
 
       if (!config.testAccount) {
-        deps.exitWithUsageError('No test_account in profile. Run `oz-channels profile init` first.');
+        deps.exitWithUsageError(
+          'No test_account in profile. Run `oz-channels profile init` first.',
+        );
       }
 
       if (!config.smokeContract) {
-        deps.exitWithUsageError('No smoke_contract in profile. Run `oz-channels smoke setup` first.');
+        deps.exitWithUsageError(
+          'No smoke_contract in profile. Run `oz-channels smoke setup` first.',
+        );
       }
 
       const account = deps.getStellarAccount(config.testAccount);
@@ -418,7 +424,9 @@ function createRunCommand(deps: SmokeDeps) {
 
       // Set up RPC server and keypair for tests that need them
       const rpcUrl =
-        network === 'mainnet' ? 'https://soroban.stellar.org' : 'https://soroban-testnet.stellar.org';
+        network === 'mainnet'
+          ? 'https://soroban.stellar.org'
+          : 'https://soroban-testnet.stellar.org';
       const rpcServer = new rpc.Server(rpcUrl);
       const passphrase = network === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
       const keypair = Keypair.fromSecret(account.secretKey);

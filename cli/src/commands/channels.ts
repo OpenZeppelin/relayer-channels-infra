@@ -137,7 +137,9 @@ function createSetCommand(deps: ChannelsDeps) {
       requireAdminSecret(deps, config);
 
       // Collect all positional arguments as IDs
-      const relayerIds = args._.filter((id): id is string => typeof id === 'string' && id.length > 0);
+      const relayerIds = args._.filter(
+        (id): id is string => typeof id === 'string' && id.length > 0,
+      );
       if (args.ids) {
         relayerIds.unshift(args.ids);
       }

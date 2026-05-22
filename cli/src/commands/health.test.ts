@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { createHealthCommand, type HealthDeps } from './health.js';
+import { type HealthDeps, createHealthCommand } from './health.js';
 
 // Store original process.exit
 const originalExit = process.exit;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { createFeeCommand, type FeeDeps } from './fee.js';
+import { type FeeDeps, createFeeCommand } from './fee.js';
 
 // Store original functions
 const originalExit = process.exit;
@@ -167,7 +167,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const usageCmd = (feeCommand.subCommands as any)?.usage;
 
-      await usageCmd!.run!({
+      await usageCmd?.run?.({
         args: {
           'target-api-key': 'target-key-12345678',
           json: false,
@@ -195,7 +195,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const usageCmd = (feeCommand.subCommands as any)?.usage;
 
-      await usageCmd!.run!({
+      await usageCmd?.run?.({
         args: {
           'target-api-key': 'target-key-abc',
           json: true,
@@ -219,7 +219,7 @@ describe('fee command', () => {
       const usageCmd = (feeCommand.subCommands as any)?.usage;
 
       await expect(
-        usageCmd!.run!({
+        usageCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             json: false,
@@ -239,7 +239,7 @@ describe('fee command', () => {
       const usageCmd = (feeCommand.subCommands as any)?.usage;
 
       await expect(
-        usageCmd!.run!({
+        usageCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             json: false,
@@ -261,7 +261,7 @@ describe('fee command', () => {
       const usageCmd = (feeCommand.subCommands as any)?.usage;
 
       await expect(
-        usageCmd!.run!({
+        usageCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             json: false,
@@ -281,7 +281,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const limitCmd = (feeCommand.subCommands as any)?.limit;
 
-      await limitCmd!.run!({
+      await limitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-xyz',
           json: false,
@@ -301,7 +301,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const limitCmd = (feeCommand.subCommands as any)?.limit;
 
-      await limitCmd!.run!({
+      await limitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-xyz',
           json: false,
@@ -320,7 +320,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const limitCmd = (feeCommand.subCommands as any)?.limit;
 
-      await limitCmd!.run!({
+      await limitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-xyz',
           json: true,
@@ -338,7 +338,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const limitCmd = (feeCommand.subCommands as any)?.limit;
 
-      await limitCmd!.run!({
+      await limitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-xyz',
           json: true,
@@ -357,7 +357,7 @@ describe('fee command', () => {
       const limitCmd = (feeCommand.subCommands as any)?.limit;
 
       await expect(
-        limitCmd!.run!({
+        limitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             json: false,
@@ -378,7 +378,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
-      await setLimitCmd!.run!({
+      await setLimitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-abc',
           limit: '250000',
@@ -399,7 +399,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
-      await setLimitCmd!.run!({
+      await setLimitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-abc',
           limit: '150000',
@@ -421,7 +421,7 @@ describe('fee command', () => {
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
       await expect(
-        setLimitCmd!.run!({
+        setLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             limit: '-100',
@@ -443,7 +443,7 @@ describe('fee command', () => {
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
       await expect(
-        setLimitCmd!.run!({
+        setLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             limit: 'not-a-number',
@@ -463,7 +463,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
-      await setLimitCmd!.run!({
+      await setLimitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-abc',
           limit: '0',
@@ -480,15 +480,13 @@ describe('fee command', () => {
 
     test('prompts for confirmation on protected profile', async () => {
       const mockConfirmProtected = mock(async () => true);
-      const mockDeps = createMockDeps(
-        { isProtected: true, profileName: 'mainnet' },
-        undefined,
-        { confirmProtectedOperation: mockConfirmProtected as FeeDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true, profileName: 'mainnet' }, undefined, {
+        confirmProtectedOperation: mockConfirmProtected as FeeDeps['confirmProtectedOperation'],
+      });
       const feeCommand = createFeeCommand(mockDeps);
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
-      await setLimitCmd!.run!({
+      await setLimitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-abc',
           limit: '100000',
@@ -516,16 +514,14 @@ describe('fee command', () => {
     });
 
     test('cancels operation when confirmation denied on protected profile', async () => {
-      const mockDeps = createMockDeps(
-        { isProtected: true, profileName: 'mainnet' },
-        undefined,
-        { confirmProtectedOperation: mock(async () => false) as FeeDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true, profileName: 'mainnet' }, undefined, {
+        confirmProtectedOperation: mock(async () => false) as FeeDeps['confirmProtectedOperation'],
+      });
       const feeCommand = createFeeCommand(mockDeps);
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
       await expect(
-        setLimitCmd!.run!({
+        setLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             limit: '100000',
@@ -549,7 +545,7 @@ describe('fee command', () => {
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
       await expect(
-        setLimitCmd!.run!({
+        setLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             limit: '100000',
@@ -573,7 +569,7 @@ describe('fee command', () => {
       const setLimitCmd = (feeCommand.subCommands as any)?.['set-limit'];
 
       await expect(
-        setLimitCmd!.run!({
+        setLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             limit: '100000',
@@ -595,7 +591,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const deleteLimitCmd = (feeCommand.subCommands as any)?.['delete-limit'];
 
-      await deleteLimitCmd!.run!({
+      await deleteLimitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-abc',
           json: false,
@@ -615,7 +611,7 @@ describe('fee command', () => {
       const feeCommand = createFeeCommand(mockDeps);
       const deleteLimitCmd = (feeCommand.subCommands as any)?.['delete-limit'];
 
-      await deleteLimitCmd!.run!({
+      await deleteLimitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-abc',
           json: true,
@@ -631,15 +627,13 @@ describe('fee command', () => {
 
     test('prompts for confirmation on protected profile', async () => {
       const mockConfirmProtected = mock(async () => true);
-      const mockDeps = createMockDeps(
-        { isProtected: true, profileName: 'mainnet' },
-        undefined,
-        { confirmProtectedOperation: mockConfirmProtected as FeeDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true, profileName: 'mainnet' }, undefined, {
+        confirmProtectedOperation: mockConfirmProtected as FeeDeps['confirmProtectedOperation'],
+      });
       const feeCommand = createFeeCommand(mockDeps);
       const deleteLimitCmd = (feeCommand.subCommands as any)?.['delete-limit'];
 
-      await deleteLimitCmd!.run!({
+      await deleteLimitCmd?.run?.({
         args: {
           'target-api-key': 'target-key-def',
           json: false,
@@ -666,16 +660,14 @@ describe('fee command', () => {
     });
 
     test('cancels operation when confirmation denied on protected profile', async () => {
-      const mockDeps = createMockDeps(
-        { isProtected: true, profileName: 'mainnet' },
-        undefined,
-        { confirmProtectedOperation: mock(async () => false) as FeeDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true, profileName: 'mainnet' }, undefined, {
+        confirmProtectedOperation: mock(async () => false) as FeeDeps['confirmProtectedOperation'],
+      });
       const feeCommand = createFeeCommand(mockDeps);
       const deleteLimitCmd = (feeCommand.subCommands as any)?.['delete-limit'];
 
       await expect(
-        deleteLimitCmd!.run!({
+        deleteLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-def',
             json: false,
@@ -698,7 +690,7 @@ describe('fee command', () => {
       const deleteLimitCmd = (feeCommand.subCommands as any)?.['delete-limit'];
 
       await expect(
-        deleteLimitCmd!.run!({
+        deleteLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             json: false,
@@ -721,7 +713,7 @@ describe('fee command', () => {
       const deleteLimitCmd = (feeCommand.subCommands as any)?.['delete-limit'];
 
       await expect(
-        deleteLimitCmd!.run!({
+        deleteLimitCmd?.run?.({
           args: {
             'target-api-key': 'target-key-abc',
             json: false,

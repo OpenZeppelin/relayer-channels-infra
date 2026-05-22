@@ -5,9 +5,9 @@
  * making them testable without mock.module().
  */
 
-import { confirmProtectedOperation } from './cli-config/index.js';
 import { createClient } from './api/client.js';
 import type { ApiClient } from './api/client.js';
+import { confirmProtectedOperation } from './cli-config/index.js';
 import {
   deleteProfile,
   getConfigPaths,
@@ -19,19 +19,9 @@ import {
   updateProfile,
 } from './config/index.js';
 import type { ResolvedConfig } from './config/index.js';
-import {
-  exitWithUsageError,
-  handleApiError,
-} from './utils/errors.js';
-import {
-  dim,
-  error,
-  formatTable,
-  info,
-  output,
-  success,
-  warn,
-} from './utils/output.js';
+import { exitWithUsageError, handleApiError } from './utils/errors.js';
+import { dim, error, formatTable, info, output, success, warn } from './utils/output.js';
+import { ProgressBar } from './utils/progress.js';
 import {
   closePrompts,
   prompt,
@@ -40,15 +30,14 @@ import {
   promptSelect,
 } from './utils/prompts.js';
 import {
+  type NetworkName,
   checkAccountFunded,
   fetchCompetitiveFee,
   fundViaFriendbot,
   generateStellarAccount,
   getStellarAccount,
   stellarAccountExists,
-  type NetworkName,
 } from './utils/stellar.js';
-import { ProgressBar } from './utils/progress.js';
 
 /**
  * All available dependencies for commands.

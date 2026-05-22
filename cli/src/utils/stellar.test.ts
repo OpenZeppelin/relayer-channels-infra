@@ -48,7 +48,8 @@ describe('fetchCompetitiveFee', () => {
 
     // Create a mock that throws
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = (() => Promise.reject(new Error('Network error'))) as unknown as typeof fetch;
+    globalThis.fetch = (() =>
+      Promise.reject(new Error('Network error'))) as unknown as typeof fetch;
 
     try {
       const fee = await fetchCompetitiveFee('testnet');

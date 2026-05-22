@@ -7,9 +7,11 @@ export interface OutputOptions {
 /**
  * Strip ANSI escape codes from a string to get visible length.
  */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequence stripping requires control characters
+const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
+
 function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*m/g, '');
+  return str.replace(ANSI_REGEX, '');
 }
 
 /**

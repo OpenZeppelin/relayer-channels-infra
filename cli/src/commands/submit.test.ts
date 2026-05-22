@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { createSubmitCommand, type SubmitDeps } from './submit.js';
+import { type SubmitDeps, createSubmitCommand } from './submit.js';
 
 // Store original functions
 const originalExit = process.exit;
@@ -82,7 +82,10 @@ function createMockDeps(
   configOptions?: Parameters<typeof createMockConfig>[0] | null,
   clientOptions?: Parameters<typeof createMockClient>[0],
   overrides?: Partial<SubmitDeps> & { promptResults?: string[] },
-): SubmitDeps & { _promptResults: string[]; _promptCalls: Array<{ message: string; defaultValue?: string }> } {
+): SubmitDeps & {
+  _promptResults: string[];
+  _promptCalls: Array<{ message: string; defaultValue?: string }>;
+} {
   const mockConfig = configOptions === null ? null : createMockConfig(configOptions);
   const mockClient = createMockClient(clientOptions);
   const promptResults = overrides?.promptResults ?? [];
@@ -171,7 +174,9 @@ describe('submit command', () => {
       const submitCommand = createSubmitCommand(mockDeps);
 
       expect((submitCommand.meta as any)?.name).toBe('submit');
-      expect((submitCommand.meta as any)?.description).toBe('Submit transactions to the channels service');
+      expect((submitCommand.meta as any)?.description).toBe(
+        'Submit transactions to the channels service',
+      );
     });
 
     test('has xdr and func-auth subcommands', () => {
@@ -194,13 +199,16 @@ describe('submit command', () => {
         // Valid base64 XDR
         const validXdr = 'QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQQ==';
 
-        await xdrCommand!.run!({
+        await xdrCommand?.run?.({
           args: { xdr: validXdr, json: false, wait: false },
         } as never);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitXdr).toHaveBeenCalledWith({ xdr: validXdr });
-        expect(consoleOutput.some((line) => line.includes('Transaction submitted: tx-123'))).toBe(true);
+        expect(consoleOutput.some((line) => line.includes('Transaction submitted: tx-123'))).toBe(
+          true,
+        );
         expect(consoleOutput.some((line) => line.includes('Hash:'))).toBe(true);
         expect(consoleOutput.some((line) => line.includes('Status:'))).toBe(true);
       });
@@ -212,7 +220,7 @@ describe('submit command', () => {
 
         const validXdr = 'QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQQ==';
 
-        await xdrCommand!.run!({
+        await xdrCommand?.run?.({
           args: { xdr: validXdr, json: true, wait: false },
         } as never);
 
@@ -233,7 +241,7 @@ describe('submit command', () => {
         const validXdr = 'QUFBQQ==';
 
         // Should not throw
-        await xdrCommand!.run!({
+        await xdrCommand?.run?.({
           args: { xdr: validXdr, json: false, wait: false },
         } as never);
 
@@ -248,7 +256,7 @@ describe('submit command', () => {
 
         const validXdr = 'QUFBQQ==';
 
-        await xdrCommand!.run!({
+        await xdrCommand?.run?.({
           args: { xdr: validXdr, json: false, wait: true, timeout: '120' },
         } as never);
 
@@ -267,15 +275,18 @@ describe('submit command', () => {
         const invalidXdr = 'not-valid-base64!@#$%';
 
         await expect(
-          xdrCommand!.run!({
+          xdrCommand?.run?.({
             args: { xdr: invalidXdr, json: false, wait: false },
           } as never),
         ).rejects.toThrow('process.exit(2)');
 
         expect(exitCode).toBe(2);
-        expect(consoleErrors.some((line) => line.includes('Invalid XDR: must be base64 encoded'))).toBe(true);
+        expect(
+          consoleErrors.some((line) => line.includes('Invalid XDR: must be base64 encoded')),
+        ).toBe(true);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitXdr).not.toHaveBeenCalled();
       });
 
@@ -287,13 +298,15 @@ describe('submit command', () => {
         const invalidXdr = 'QUFBQQ== QUFBQQ==';
 
         await expect(
-          xdrCommand!.run!({
+          xdrCommand?.run?.({
             args: { xdr: invalidXdr, json: false, wait: false },
           } as never),
         ).rejects.toThrow('process.exit(2)');
 
         expect(exitCode).toBe(2);
-        expect(consoleErrors.some((line) => line.includes('Invalid XDR: must be base64 encoded'))).toBe(true);
+        expect(
+          consoleErrors.some((line) => line.includes('Invalid XDR: must be base64 encoded')),
+        ).toBe(true);
       });
     });
 
@@ -304,7 +317,7 @@ describe('submit command', () => {
         const xdrCommand = (submitCommand.subCommands as any)?.xdr;
 
         await expect(
-          xdrCommand!.run!({
+          xdrCommand?.run?.({
             args: { json: false, wait: false },
           } as never),
         ).rejects.toThrow('process.exit(2)');
@@ -325,7 +338,7 @@ describe('submit command', () => {
         const xdrCommand = (submitCommand.subCommands as any)?.xdr;
 
         await expect(
-          xdrCommand!.run!({
+          xdrCommand?.run?.({
             args: { xdr: 'QUFBQQ==', json: false, wait: false },
           } as never),
         ).rejects.toThrow('process.exit(2)');
@@ -343,7 +356,7 @@ describe('submit command', () => {
         const xdrCommand = (submitCommand.subCommands as any)?.xdr;
 
         await expect(
-          xdrCommand!.run!({
+          xdrCommand?.run?.({
             args: { xdr: 'QUFBQQ==', json: false, wait: false },
           } as never),
         ).rejects.toThrow('process.exit');
@@ -363,16 +376,19 @@ describe('submit command', () => {
         const func = 'QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQQ==';
         const auth = 'QkJCQkJCQkI=,Q0NDQ0NDQ0M=';
 
-        await funcAuthCommand!.run!({
+        await funcAuthCommand?.run?.({
           args: { func, auth, json: false, wait: false, 'no-input': true },
         } as never);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitFuncAuth).toHaveBeenCalledWith({
           func,
           auth: ['QkJCQkJCQkI=', 'Q0NDQ0NDQ0M='],
         });
-        expect(consoleOutput.some((line) => line.includes('Transaction submitted: tx-456'))).toBe(true);
+        expect(consoleOutput.some((line) => line.includes('Transaction submitted: tx-456'))).toBe(
+          true,
+        );
         expect(consoleOutput.some((line) => line.includes('Hash:'))).toBe(true);
         expect(consoleOutput.some((line) => line.includes('Status:'))).toBe(true);
       });
@@ -384,11 +400,12 @@ describe('submit command', () => {
 
         const func = 'QUFBQQ==';
 
-        await funcAuthCommand!.run!({
+        await funcAuthCommand?.run?.({
           args: { func, json: false, wait: false, 'no-input': true },
         } as never);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitFuncAuth).toHaveBeenCalledWith({
           func,
           auth: [],
@@ -403,7 +420,7 @@ describe('submit command', () => {
         const func = 'QUFBQQ==';
         const auth = 'QkJCQg==';
 
-        await funcAuthCommand!.run!({
+        await funcAuthCommand?.run?.({
           args: { func, auth, json: true, wait: false, 'no-input': true },
         } as never);
 
@@ -423,7 +440,7 @@ describe('submit command', () => {
 
         const func = 'QUFBQQ==';
 
-        await funcAuthCommand!.run!({
+        await funcAuthCommand?.run?.({
           args: { func, json: false, wait: true, timeout: '120', 'no-input': true },
         } as never);
 
@@ -440,17 +457,20 @@ describe('submit command', () => {
         const submitCommand = createSubmitCommand(mockDeps);
         const funcAuthCommand = (submitCommand.subCommands as any)?.['func-auth'];
 
-        await funcAuthCommand!.run!({
+        await funcAuthCommand?.run?.({
           args: { json: false, wait: false, 'no-input': false },
         } as never);
 
         expect(mockDeps._promptCalls).toHaveLength(2);
         expect(mockDeps._promptCalls[0].message).toBe('Host function XDR (base64)');
-        expect(mockDeps._promptCalls[1].message).toBe('Authorization entries (comma-separated XDRs)');
+        expect(mockDeps._promptCalls[1].message).toBe(
+          'Authorization entries (comma-separated XDRs)',
+        );
         expect(mockDeps._promptCalls[1].defaultValue).toBe('');
         expect(mockDeps.closePrompts).toHaveBeenCalled();
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitFuncAuth).toHaveBeenCalledWith({
           func: 'QUFBQQ==',
           auth: ['QkJCQg=='],
@@ -465,7 +485,7 @@ describe('submit command', () => {
         const funcAuthCommand = (submitCommand.subCommands as any)?.['func-auth'];
 
         await expect(
-          funcAuthCommand!.run!({
+          funcAuthCommand?.run?.({
             args: { json: false, wait: false, 'no-input': false },
           } as never),
         ).rejects.toThrow('process.exit(2)');
@@ -482,11 +502,12 @@ describe('submit command', () => {
         const submitCommand = createSubmitCommand(mockDeps);
         const funcAuthCommand = (submitCommand.subCommands as any)?.['func-auth'];
 
-        await funcAuthCommand!.run!({
+        await funcAuthCommand?.run?.({
           args: { json: false, wait: false, 'no-input': false },
         } as never);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitFuncAuth).toHaveBeenCalledWith({
           func: 'QUFBQQ==',
           auth: [],
@@ -501,7 +522,7 @@ describe('submit command', () => {
         const funcAuthCommand = (submitCommand.subCommands as any)?.['func-auth'];
 
         await expect(
-          funcAuthCommand!.run!({
+          funcAuthCommand?.run?.({
             args: { json: false, wait: false, 'no-input': true },
           } as never),
         ).rejects.toThrow('process.exit(2)');
@@ -509,7 +530,8 @@ describe('submit command', () => {
         expect(exitCode).toBe(2);
         expect(consoleErrors.some((line) => line.includes('--func is required'))).toBe(true);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitFuncAuth).not.toHaveBeenCalled();
       });
     });
@@ -523,15 +545,18 @@ describe('submit command', () => {
         const invalidFunc = 'not-valid-base64!@#';
 
         await expect(
-          funcAuthCommand!.run!({
+          funcAuthCommand?.run?.({
             args: { func: invalidFunc, json: false, wait: false, 'no-input': true },
           } as never),
         ).rejects.toThrow('process.exit(2)');
 
         expect(exitCode).toBe(2);
-        expect(consoleErrors.some((line) => line.includes('Invalid func XDR: must be base64 encoded'))).toBe(true);
+        expect(
+          consoleErrors.some((line) => line.includes('Invalid func XDR: must be base64 encoded')),
+        ).toBe(true);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitFuncAuth).not.toHaveBeenCalled();
       });
 
@@ -544,15 +569,18 @@ describe('submit command', () => {
         const invalidAuth = 'QUFBQQ==,invalid!@#';
 
         await expect(
-          funcAuthCommand!.run!({
+          funcAuthCommand?.run?.({
             args: { func, auth: invalidAuth, json: false, wait: false, 'no-input': true },
           } as never),
         ).rejects.toThrow('process.exit(2)');
 
         expect(exitCode).toBe(2);
-        expect(consoleErrors.some((line) => line.includes('Invalid auth entry: must be base64 encoded'))).toBe(true);
+        expect(
+          consoleErrors.some((line) => line.includes('Invalid auth entry: must be base64 encoded')),
+        ).toBe(true);
 
-        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
+        const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]
+          ?.value;
         expect(mockClient.submitFuncAuth).not.toHaveBeenCalled();
       });
 
@@ -565,13 +593,15 @@ describe('submit command', () => {
         const invalidAuth = 'invalid!,QUFBQQ==';
 
         await expect(
-          funcAuthCommand!.run!({
+          funcAuthCommand?.run?.({
             args: { func, auth: invalidAuth, json: false, wait: false, 'no-input': true },
           } as never),
         ).rejects.toThrow('process.exit(2)');
 
         expect(exitCode).toBe(2);
-        expect(consoleErrors.some((line) => line.includes('Invalid auth entry: must be base64 encoded'))).toBe(true);
+        expect(
+          consoleErrors.some((line) => line.includes('Invalid auth entry: must be base64 encoded')),
+        ).toBe(true);
       });
     });
 
@@ -582,7 +612,7 @@ describe('submit command', () => {
         const funcAuthCommand = (submitCommand.subCommands as any)?.['func-auth'];
 
         await expect(
-          funcAuthCommand!.run!({
+          funcAuthCommand?.run?.({
             args: { func: 'QUFBQQ==', json: false, wait: false, 'no-input': true },
           } as never),
         ).rejects.toThrow('process.exit(2)');
@@ -600,7 +630,7 @@ describe('submit command', () => {
         const funcAuthCommand = (submitCommand.subCommands as any)?.['func-auth'];
 
         await expect(
-          funcAuthCommand!.run!({
+          funcAuthCommand?.run?.({
             args: { func: 'QUFBQQ==', json: false, wait: false, 'no-input': true },
           } as never),
         ).rejects.toThrow('process.exit');

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { createChannelsCommand, type ChannelsDeps } from './channels.js';
+import { type ChannelsDeps, createChannelsCommand } from './channels.js';
 
 // Store original functions
 const originalExit = process.exit;
@@ -128,7 +128,9 @@ describe('channels command', () => {
 
   describe('list subcommand', () => {
     test('lists channels successfully', async () => {
-      const mockDeps = createMockDeps(undefined, { listData: ['relayer-1', 'relayer-2', 'relayer-3'] });
+      const mockDeps = createMockDeps(undefined, {
+        listData: ['relayer-1', 'relayer-2', 'relayer-3'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const listCommand = (channelsCommand.subCommands as any)?.list;
 
@@ -151,7 +153,9 @@ describe('channels command', () => {
 
       const mockClient = (mockDeps.createClient as ReturnType<typeof mock>).mock.results[0]?.value;
       expect(mockClient.listChannelAccounts).toHaveBeenCalledTimes(1);
-      expect(consoleOutput.some((line) => line.includes('No channel accounts configured'))).toBe(true);
+      expect(consoleOutput.some((line) => line.includes('No channel accounts configured'))).toBe(
+        true,
+      );
     });
 
     test('outputs JSON when --json flag is provided', async () => {
@@ -216,11 +220,10 @@ describe('channels command', () => {
 
     test('prompts for confirmation on protected profile', async () => {
       const mockConfirmProtected = mock(async () => true);
-      const mockDeps = createMockDeps(
-        { isProtected: true, profileName: 'production' },
-        undefined,
-        { confirmProtectedOperation: mockConfirmProtected as ChannelsDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true, profileName: 'production' }, undefined, {
+        confirmProtectedOperation:
+          mockConfirmProtected as ChannelsDeps['confirmProtectedOperation'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const setCommand = (channelsCommand.subCommands as any)?.set;
 
@@ -239,11 +242,11 @@ describe('channels command', () => {
     });
 
     test('cancels when protected profile confirmation is declined', async () => {
-      const mockDeps = createMockDeps(
-        { isProtected: true },
-        undefined,
-        { confirmProtectedOperation: mock(async () => false) as ChannelsDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true }, undefined, {
+        confirmProtectedOperation: mock(
+          async () => false,
+        ) as ChannelsDeps['confirmProtectedOperation'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const setCommand = (channelsCommand.subCommands as any)?.set;
 
@@ -262,14 +265,10 @@ describe('channels command', () => {
     test('prompts for confirmation on non-protected profile when interactive', async () => {
       const mockPromptConfirm = mock(async () => true);
       const mockClosePrompts = mock(() => {});
-      const mockDeps = createMockDeps(
-        { isProtected: false },
-        undefined,
-        {
-          promptConfirm: mockPromptConfirm as ChannelsDeps['promptConfirm'],
-          closePrompts: mockClosePrompts as ChannelsDeps['closePrompts'],
-        },
-      );
+      const mockDeps = createMockDeps({ isProtected: false }, undefined, {
+        promptConfirm: mockPromptConfirm as ChannelsDeps['promptConfirm'],
+        closePrompts: mockClosePrompts as ChannelsDeps['closePrompts'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const setCommand = (channelsCommand.subCommands as any)?.set;
 
@@ -286,11 +285,9 @@ describe('channels command', () => {
     });
 
     test('cancels when interactive confirmation is declined', async () => {
-      const mockDeps = createMockDeps(
-        { isProtected: false },
-        undefined,
-        { promptConfirm: mock(async () => false) as ChannelsDeps['promptConfirm'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: false }, undefined, {
+        promptConfirm: mock(async () => false) as ChannelsDeps['promptConfirm'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const setCommand = (channelsCommand.subCommands as any)?.set;
 
@@ -305,11 +302,9 @@ describe('channels command', () => {
 
     test('skips confirmation with --no-input flag', async () => {
       const mockPromptConfirm = mock(async () => true);
-      const mockDeps = createMockDeps(
-        { isProtected: false },
-        undefined,
-        { promptConfirm: mockPromptConfirm as ChannelsDeps['promptConfirm'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: false }, undefined, {
+        promptConfirm: mockPromptConfirm as ChannelsDeps['promptConfirm'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const setCommand = (channelsCommand.subCommands as any)?.set;
 
@@ -323,10 +318,9 @@ describe('channels command', () => {
     });
 
     test('outputs JSON on success when --json flag is provided', async () => {
-      const mockDeps = createMockDeps(
-        undefined,
-        { setResponse: { ok: true, appliedRelayerIds: ['relayer-1'] } },
-      );
+      const mockDeps = createMockDeps(undefined, {
+        setResponse: { ok: true, appliedRelayerIds: ['relayer-1'] },
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const setCommand = (channelsCommand.subCommands as any)?.set;
 
@@ -404,7 +398,10 @@ describe('channels command', () => {
       const mockDeps = createMockDeps(
         { isProtected: true, profileName: 'prod' },
         { listData: [] },
-        { confirmProtectedOperation: mockConfirmProtected as ChannelsDeps['confirmProtectedOperation'] },
+        {
+          confirmProtectedOperation:
+            mockConfirmProtected as ChannelsDeps['confirmProtectedOperation'],
+        },
       );
       const channelsCommand = createChannelsCommand(mockDeps);
       const addCommand = (channelsCommand.subCommands as any)?.add;
@@ -424,11 +421,11 @@ describe('channels command', () => {
     });
 
     test('cancels when protected profile confirmation is declined', async () => {
-      const mockDeps = createMockDeps(
-        { isProtected: true },
-        undefined,
-        { confirmProtectedOperation: mock(async () => false) as ChannelsDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true }, undefined, {
+        confirmProtectedOperation: mock(
+          async () => false,
+        ) as ChannelsDeps['confirmProtectedOperation'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const addCommand = (channelsCommand.subCommands as any)?.add;
 
@@ -471,7 +468,9 @@ describe('channels command', () => {
 
   describe('remove subcommand', () => {
     test('removes existing relayer ID successfully', async () => {
-      const mockDeps = createMockDeps(undefined, { listData: ['relayer-1', 'relayer-2', 'relayer-3'] });
+      const mockDeps = createMockDeps(undefined, {
+        listData: ['relayer-1', 'relayer-2', 'relayer-3'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const removeCommand = (channelsCommand.subCommands as any)?.remove;
 
@@ -527,7 +526,10 @@ describe('channels command', () => {
       const mockDeps = createMockDeps(
         { isProtected: true, profileName: 'staging' },
         { listData: ['relayer-1'] },
-        { confirmProtectedOperation: mockConfirmProtected as ChannelsDeps['confirmProtectedOperation'] },
+        {
+          confirmProtectedOperation:
+            mockConfirmProtected as ChannelsDeps['confirmProtectedOperation'],
+        },
       );
       const channelsCommand = createChannelsCommand(mockDeps);
       const removeCommand = (channelsCommand.subCommands as any)?.remove;
@@ -547,11 +549,11 @@ describe('channels command', () => {
     });
 
     test('cancels when protected profile confirmation is declined', async () => {
-      const mockDeps = createMockDeps(
-        { isProtected: true },
-        undefined,
-        { confirmProtectedOperation: mock(async () => false) as ChannelsDeps['confirmProtectedOperation'] },
-      );
+      const mockDeps = createMockDeps({ isProtected: true }, undefined, {
+        confirmProtectedOperation: mock(
+          async () => false,
+        ) as ChannelsDeps['confirmProtectedOperation'],
+      });
       const channelsCommand = createChannelsCommand(mockDeps);
       const removeCommand = (channelsCommand.subCommands as any)?.remove;
 

@@ -1,6 +1,6 @@
-import { isProtectedName } from '../cli-config/index.js';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
+import { isProtectedName } from '../cli-config/index.js';
 import { type CommandDeps, defaultDeps } from '../deps.js';
 
 /**
@@ -77,7 +77,9 @@ function createInitCommand(deps: ProfileDeps) {
 
       const existingProfile = deps.getProfile(profileName);
       if (existingProfile) {
-        const overwrite = await deps.promptConfirm(`Profile '${profileName}' already exists. Overwrite?`);
+        const overwrite = await deps.promptConfirm(
+          `Profile '${profileName}' already exists. Overwrite?`,
+        );
         if (!overwrite) {
           console.log('Profile creation cancelled');
           deps.closePrompts();
@@ -102,7 +104,9 @@ function createInitCommand(deps: ProfileDeps) {
       }
 
       const pluginId = await deps.prompt('Plugin ID (optional, default: channels)', 'channels');
-      const adminSecret = await deps.promptPassword('Admin Secret (optional, for management operations)');
+      const adminSecret = await deps.promptPassword(
+        'Admin Secret (optional, for management operations)',
+      );
 
       // Network selection
       const network = await deps.promptSelect<'testnet' | 'mainnet'>('Which network?', [
@@ -134,7 +138,9 @@ function createInitCommand(deps: ProfileDeps) {
                     if (funded) {
                       console.log(pc.green('Account funded successfully'));
                     } else {
-                      console.log(pc.yellow('Failed to fund via friendbot (may already be funded)'));
+                      console.log(
+                        pc.yellow('Failed to fund via friendbot (may already be funded)'),
+                      );
                     }
                   }
                 }

@@ -3,10 +3,13 @@ import { formatJson, formatTable } from './output.js';
 
 describe('formatTable', () => {
   test('formats simple table with headers and rows', () => {
-    const result = formatTable(['NAME', 'VALUE'], [
-      ['foo', 'bar'],
-      ['baz', 'qux'],
-    ]);
+    const result = formatTable(
+      ['NAME', 'VALUE'],
+      [
+        ['foo', 'bar'],
+        ['baz', 'qux'],
+      ],
+    );
     const lines = result.split('\n');
     expect(lines.length).toBe(3); // header + separator (empty) + 2 data rows - 1 (separator filtered)
     expect(lines[0]).toContain('NAME');
@@ -14,10 +17,13 @@ describe('formatTable', () => {
   });
 
   test('pads columns to maximum width', () => {
-    const result = formatTable(['A', 'B'], [
-      ['short', 'x'],
-      ['verylongvalue', 'y'],
-    ]);
+    const result = formatTable(
+      ['A', 'B'],
+      [
+        ['short', 'x'],
+        ['verylongvalue', 'y'],
+      ],
+    );
     const lines = result.split('\n');
     // All lines should have consistent column widths
     expect(lines[1]).toContain('short');
@@ -32,20 +38,20 @@ describe('formatTable', () => {
   });
 
   test('handles cells with different lengths', () => {
-    const result = formatTable(['COL1', 'COLUMN2', 'C'], [
-      ['a', 'bb', 'ccc'],
-      ['dddd', 'e', 'ffffff'],
-    ]);
+    const result = formatTable(
+      ['COL1', 'COLUMN2', 'C'],
+      [
+        ['a', 'bb', 'ccc'],
+        ['dddd', 'e', 'ffffff'],
+      ],
+    );
     expect(result).toContain('COL1');
     expect(result).toContain('COLUMN2');
     expect(result).toContain('C');
   });
 
   test('handles missing cells gracefully', () => {
-    const result = formatTable(['A', 'B', 'C'], [
-      ['1', '2'],
-      ['3'],
-    ]);
+    const result = formatTable(['A', 'B', 'C'], [['1', '2'], ['3']]);
     expect(result).toContain('1');
     expect(result).toContain('2');
     expect(result).toContain('3');

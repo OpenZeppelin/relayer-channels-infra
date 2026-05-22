@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { createProfileCommand, type ProfileDeps } from './profile.js';
+import { type ProfileDeps, createProfileCommand } from './profile.js';
 
 // Mock data
 const mockProfiles = [
@@ -119,7 +119,11 @@ describe('profile command', () => {
       const listCommand = (profileCommand.subCommands as any)?.list;
       expect(listCommand).toBeDefined();
 
-      await listCommand!.run!({ args: { json: false, 'no-input': false }, rawArgs: [], cmd: listCommand! });
+      await listCommand?.run?.({
+        args: { json: false, 'no-input': false },
+        rawArgs: [],
+        cmd: listCommand!,
+      });
 
       expect(mockDeps.listProfiles).toHaveBeenCalledTimes(1);
       const output = consoleOutput.join('\n');
@@ -135,7 +139,11 @@ describe('profile command', () => {
       });
       const profileCommand = createProfileCommand(mockDeps);
       const listCommand = (profileCommand.subCommands as any)?.list;
-      await listCommand!.run!({ args: { json: false, 'no-input': false }, rawArgs: [], cmd: listCommand! });
+      await listCommand?.run?.({
+        args: { json: false, 'no-input': false },
+        rawArgs: [],
+        cmd: listCommand!,
+      });
 
       expect(mockDeps.listProfiles).toHaveBeenCalledTimes(1);
       const output = consoleOutput.join('\n');
@@ -147,7 +155,11 @@ describe('profile command', () => {
       const mockDeps = createMockDeps();
       const profileCommand = createProfileCommand(mockDeps);
       const listCommand = (profileCommand.subCommands as any)?.list;
-      await listCommand!.run!({ args: { json: true, 'no-input': false }, rawArgs: [], cmd: listCommand! });
+      await listCommand?.run?.({
+        args: { json: true, 'no-input': false },
+        rawArgs: [],
+        cmd: listCommand!,
+      });
 
       expect(mockDeps.listProfiles).toHaveBeenCalledTimes(1);
       const output = consoleOutput.join('\n');
@@ -182,7 +194,11 @@ describe('profile command', () => {
       });
       const profileCommand = createProfileCommand(mockDeps);
       const listCommand = (profileCommand.subCommands as any)?.list;
-      await listCommand!.run!({ args: { json: true, 'no-input': false }, rawArgs: [], cmd: listCommand! });
+      await listCommand?.run?.({
+        args: { json: true, 'no-input': false },
+        rawArgs: [],
+        cmd: listCommand!,
+      });
 
       const output = consoleOutput.join('\n');
       const parsed = JSON.parse(output);
@@ -193,7 +209,11 @@ describe('profile command', () => {
       const mockDeps = createMockDeps();
       const profileCommand = createProfileCommand(mockDeps);
       const listCommand = (profileCommand.subCommands as any)?.list;
-      await listCommand!.run!({ args: { json: false, 'no-input': false }, rawArgs: [], cmd: listCommand! });
+      await listCommand?.run?.({
+        args: { json: false, 'no-input': false },
+        rawArgs: [],
+        cmd: listCommand!,
+      });
 
       const output = consoleOutput.join('\n');
       expect(output).toContain('PLUGIN ID');
@@ -204,7 +224,11 @@ describe('profile command', () => {
       const mockDeps = createMockDeps();
       const profileCommand = createProfileCommand(mockDeps);
       const listCommand = (profileCommand.subCommands as any)?.list;
-      await listCommand!.run!({ args: { json: false, 'no-input': false }, rawArgs: [], cmd: listCommand! });
+      await listCommand?.run?.({
+        args: { json: false, 'no-input': false },
+        rawArgs: [],
+        cmd: listCommand!,
+      });
 
       const output = consoleOutput.join('\n');
       expect(output).toContain('(default)');
@@ -214,7 +238,11 @@ describe('profile command', () => {
       const mockDeps = createMockDeps();
       const profileCommand = createProfileCommand(mockDeps);
       const listCommand = (profileCommand.subCommands as any)?.list;
-      await listCommand!.run!({ args: { json: false, 'no-input': false }, rawArgs: [], cmd: listCommand! });
+      await listCommand?.run?.({
+        args: { json: false, 'no-input': false },
+        rawArgs: [],
+        cmd: listCommand!,
+      });
 
       const output = consoleOutput.join('\n');
       expect(output).toContain('(protected)');
@@ -228,7 +256,7 @@ describe('profile command', () => {
       const showCommand = (profileCommand.subCommands as any)?.show;
       expect(showCommand).toBeDefined();
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'default', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -249,7 +277,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: undefined, json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -266,7 +294,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'default', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -282,7 +310,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'production', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -301,7 +329,7 @@ describe('profile command', () => {
       const showCommand = (profileCommand.subCommands as any)?.show;
 
       try {
-        await showCommand!.run!({
+        await showCommand?.run?.({
           args: { name: 'nonexistent', json: false, 'no-input': false },
           rawArgs: [],
           cmd: showCommand!,
@@ -326,7 +354,7 @@ describe('profile command', () => {
       const showCommand = (profileCommand.subCommands as any)?.show;
 
       try {
-        await showCommand!.run!({
+        await showCommand?.run?.({
           args: { name: undefined, json: false, 'no-input': false },
           rawArgs: [],
           cmd: showCommand!,
@@ -345,7 +373,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'default', json: true, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -373,7 +401,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'production', json: true, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -390,7 +418,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'production', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -405,7 +433,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'default', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -421,7 +449,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'default', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -437,7 +465,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'default', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -453,7 +481,7 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const showCommand = (profileCommand.subCommands as any)?.show;
 
-      await showCommand!.run!({
+      await showCommand?.run?.({
         args: { name: 'default', json: false, 'no-input': false },
         rawArgs: [],
         cmd: showCommand!,
@@ -472,7 +500,11 @@ describe('profile command', () => {
       const pathCommand = (profileCommand.subCommands as any)?.path;
       expect(pathCommand).toBeDefined();
 
-      await pathCommand!.run!({ args: { json: false, 'no-input': false }, rawArgs: [], cmd: pathCommand! });
+      await pathCommand?.run?.({
+        args: { json: false, 'no-input': false },
+        rawArgs: [],
+        cmd: pathCommand!,
+      });
 
       expect(mockDeps.getConfigPaths).toHaveBeenCalledTimes(1);
       const output = consoleOutput.join('\n');
@@ -487,7 +519,11 @@ describe('profile command', () => {
       const profileCommand = createProfileCommand(mockDeps);
       const pathCommand = (profileCommand.subCommands as any)?.path;
 
-      await pathCommand!.run!({ args: { json: true, 'no-input': false }, rawArgs: [], cmd: pathCommand! });
+      await pathCommand?.run?.({
+        args: { json: true, 'no-input': false },
+        rawArgs: [],
+        cmd: pathCommand!,
+      });
 
       expect(mockDeps.getConfigPaths).toHaveBeenCalledTimes(1);
       const output = consoleOutput.join('\n');
@@ -508,7 +544,11 @@ describe('profile command', () => {
       });
       const profileCommand = createProfileCommand(mockDeps);
       const pathCommand = (profileCommand.subCommands as any)?.path;
-      await pathCommand!.run!({ args: { json: false, 'no-input': false }, rawArgs: [], cmd: pathCommand! });
+      await pathCommand?.run?.({
+        args: { json: false, 'no-input': false },
+        rawArgs: [],
+        cmd: pathCommand!,
+      });
 
       const output = consoleOutput.join('\n');
       expect(output).toContain('User config:');
@@ -524,7 +564,7 @@ describe('profile command', () => {
       const useCommand = (profileCommand.subCommands as any)?.use;
       expect(useCommand).toBeDefined();
 
-      await useCommand!.run!({
+      await useCommand?.run?.({
         args: { name: 'production' },
         rawArgs: [],
         cmd: useCommand!,
@@ -543,7 +583,7 @@ describe('profile command', () => {
       const useCommand = (profileCommand.subCommands as any)?.use;
 
       try {
-        await useCommand!.run!({
+        await useCommand?.run?.({
           args: { name: 'nonexistent' },
           rawArgs: [],
           cmd: useCommand!,
@@ -563,7 +603,7 @@ describe('profile command', () => {
       const useCommand = (profileCommand.subCommands as any)?.use;
 
       try {
-        await useCommand!.run!({
+        await useCommand?.run?.({
           args: { name: undefined },
           rawArgs: [],
           cmd: useCommand!,
@@ -587,7 +627,7 @@ describe('profile command', () => {
       const deleteCommand = (profileCommand.subCommands as any)?.delete;
 
       try {
-        await deleteCommand!.run!({
+        await deleteCommand?.run?.({
           args: { name: 'nonexistent', json: false, 'no-input': true },
           rawArgs: [],
           cmd: deleteCommand!,
