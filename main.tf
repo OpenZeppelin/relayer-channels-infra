@@ -78,19 +78,19 @@ module "relayer_channels" {
   relay_rpm_per_key      = var.relay_rpm_per_key
 
   # Container / ECS
-  container_image       = var.container_image
-  container_image_tag   = var.container_image_tag
-  container_port        = var.container_port
-  cpu                   = var.cpu
-  memory                = var.memory
-  desired_count         = var.desired_count
+  container_image          = var.container_image
+  container_image_tag      = var.container_image_tag
+  container_port           = var.container_port
+  cpu                      = var.cpu
+  memory                   = var.memory
+  desired_count            = var.desired_count
   autoscaling_min_capacity = var.autoscaling_min_capacity
   autoscaling_max_capacity = var.autoscaling_max_capacity
-  cpu_architecture      = var.cpu_architecture
-  ephemeral_storage_gib = var.ephemeral_storage_gib
-  health_check_path     = var.health_check_path
-  container_environment = var.container_environment
-  container_secrets     = var.container_secrets
+  cpu_architecture         = var.cpu_architecture
+  ephemeral_storage_gib    = var.ephemeral_storage_gib
+  health_check_path        = var.health_check_path
+  container_environment    = var.container_environment
+  container_secrets        = var.container_secrets
 
   # Relayer application
   stellar_network          = var.stellar_network
@@ -106,9 +106,9 @@ module "relayer_channels" {
   storage_encryption_key = var.storage_encryption_key
 
   # Redis
-  redis_node_type              = var.redis_node_type
-  redis_num_cache_clusters     = var.redis_num_cache_clusters
-  redis_engine_version         = var.redis_engine_version
+  redis_node_type               = var.redis_node_type
+  redis_num_cache_clusters      = var.redis_num_cache_clusters
+  redis_engine_version          = var.redis_engine_version
   redis_snapshot_retention_days = var.redis_snapshot_retention_days
 
   # SQS

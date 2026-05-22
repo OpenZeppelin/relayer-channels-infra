@@ -46,3 +46,14 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+
+# channels CLI
+dist/
+node_modules/
+bun.lock
+.turbo/
+
+# Secrets & environment files
+.env
+.env.*
+!.env.example
