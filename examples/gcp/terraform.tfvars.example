@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------------
+# GCP Provider
+# ---------------------------------------------------------------------------
+project_id = "my-gcp-project"
+region     = "us-central1"
+
+# ---------------------------------------------------------------------------
+# Core
+# ---------------------------------------------------------------------------
+environment = "stg"
+# app_name  = "relayer-channels"   # default
+
+# ---------------------------------------------------------------------------
+# Networking
+# ---------------------------------------------------------------------------
+network    = "default"
+subnetwork = "default"
+# connector_ip_cidr_range = "10.8.0.0/28"  # must not overlap existing subnets
+
+# ---------------------------------------------------------------------------
+# DNS & TLS
+# ---------------------------------------------------------------------------
+domain_name           = "channels.example.com"
+dns_managed_zone_name = "example-com"        # Cloud DNS managed zone name
+# dns_project_id      = ""                   # if DNS zone is in a different project
+
+# ---------------------------------------------------------------------------
+# Container
+# ---------------------------------------------------------------------------
+container_image = "us-docker.pkg.dev/my-project/relayer/channels:latest"
+# container_port = 8080
+# cpu            = "1"
+# memory         = "2Gi"
+
+# ---------------------------------------------------------------------------
+# Relayer application
+# ---------------------------------------------------------------------------
+# stellar_network = "testnet"
+# fund_relayer_id = "channels-fund"
+# log_level       = "warn"
+# distributed_mode = true
+# queue_backend    = "memory"   # use "pubsub" once the app supports it
+
+# ---------------------------------------------------------------------------
+# Secrets (store these securely — do NOT commit this file)
+# ---------------------------------------------------------------------------
+relayer_api_key       = "CHANGE_ME"
+channels_admin_secret = "CHANGE_ME"
+# webhook_signing_key    = ""
+# storage_encryption_key = ""
+
+# ---------------------------------------------------------------------------
+# Redis (Memorystore)
+# ---------------------------------------------------------------------------
+# redis_tier           = null    # auto: STANDARD_HA for prod, BASIC otherwise
+# redis_memory_size_gb = null    # auto: 5 for prod, 1 otherwise
+# redis_version        = "REDIS_7_2"
+
+# ---------------------------------------------------------------------------
+# Cloudflare (optional — disabled by default)
+# ---------------------------------------------------------------------------
+# enable_cloudflare      = false
+# cloudflare_api_token   = ""
+# cloudflare_zone_id     = ""
+# cloudflare_account_id  = ""
+# relayer_static_api_key = ""
+# key_salt               = ""
+
+# ---------------------------------------------------------------------------
+# Cloud Functions (optional — disabled by default)
+# ---------------------------------------------------------------------------
+# enable_balance_check_function    = false
+# enable_restart_on_alert_function = false
+
+# ---------------------------------------------------------------------------
+# Labels
+# ---------------------------------------------------------------------------
+# labels = {
+#   team    = "infrastructure"
+#   project = "relayer-channels"
+# }
