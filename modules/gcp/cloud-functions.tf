@@ -114,14 +114,14 @@ resource "google_cloudfunctions2_function" "balance_check" {
     service_account_email = google_service_account.functions[0].email
 
     environment_variables = {
-      BALANCE_URL                     = "https://${var.domain_name}/api/v1/relayers/${var.fund_relayer_id}/balance"
-      EXTRA_BALANCE_URLS              = var.balance_check_extra_urls
-      RELAYERS_URL                    = "https://${var.domain_name}/api/v1/relayers"
-      PLUGINS_CALL_URL                = "https://${var.domain_name}/api/v1/plugins/channels/call"
-      RELAYER_API_KEY_SECRET          = google_secret_manager_secret.relayer_api_key.secret_id
-      CHANNELS_ADMIN_SECRET_SECRET    = google_secret_manager_secret.channels_admin_secret.secret_id
-      ENVIRONMENT                     = var.environment
-      GCP_PROJECT_ID                  = var.project_id
+      BALANCE_URL                  = "https://${var.domain_name}/api/v1/relayers/${var.fund_relayer_id}/balance"
+      EXTRA_BALANCE_URLS           = var.balance_check_extra_urls
+      RELAYERS_URL                 = "https://${var.domain_name}/api/v1/relayers"
+      PLUGINS_CALL_URL             = "https://${var.domain_name}/api/v1/plugins/channels/call"
+      RELAYER_API_KEY_SECRET       = google_secret_manager_secret.relayer_api_key.secret_id
+      CHANNELS_ADMIN_SECRET_SECRET = google_secret_manager_secret.channels_admin_secret.secret_id
+      ENVIRONMENT                  = var.environment
+      GCP_PROJECT_ID               = var.project_id
     }
   }
 

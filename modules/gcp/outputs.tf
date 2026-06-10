@@ -60,9 +60,9 @@ output "pubsub_subscriptions" {
 output "secret_ids" {
   description = "Map of secret names to their Secret Manager secret IDs"
   value = {
-    relayer_api_key       = google_secret_manager_secret.relayer_api_key.secret_id
-    channels_admin_secret = google_secret_manager_secret.channels_admin_secret.secret_id
-    webhook_signing_key   = var.webhook_signing_key != "" ? google_secret_manager_secret.webhook_signing_key[0].secret_id : null
+    relayer_api_key        = google_secret_manager_secret.relayer_api_key.secret_id
+    channels_admin_secret  = google_secret_manager_secret.channels_admin_secret.secret_id
+    webhook_signing_key    = var.webhook_signing_key != "" ? google_secret_manager_secret.webhook_signing_key[0].secret_id : null
     storage_encryption_key = var.storage_encryption_key != "" ? google_secret_manager_secret.storage_encryption_key[0].secret_id : null
   }
 }

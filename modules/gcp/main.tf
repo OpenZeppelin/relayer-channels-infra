@@ -22,13 +22,13 @@ locals {
 
   container_port = var.container_port
 
-  min_instance_count_effective = var.min_instance_count != null ? var.min_instance_count : (local.is_prod ? 2 : 1)
-  max_instance_count_effective = var.max_instance_count != null ? var.max_instance_count : (local.is_prod ? 10 : 4)
-  cpu_always_allocated_effective = var.cpu_always_allocated != null ? var.cpu_always_allocated : local.is_prod
-  redis_tier_effective         = var.redis_tier != null ? var.redis_tier : (local.is_prod ? "STANDARD_HA" : "BASIC")
-  redis_memory_size_effective  = var.redis_memory_size_gb != null ? var.redis_memory_size_gb : (local.is_prod ? 5 : 1)
+  min_instance_count_effective     = var.min_instance_count != null ? var.min_instance_count : (local.is_prod ? 2 : 1)
+  max_instance_count_effective     = var.max_instance_count != null ? var.max_instance_count : (local.is_prod ? 10 : 4)
+  cpu_always_allocated_effective   = var.cpu_always_allocated != null ? var.cpu_always_allocated : local.is_prod
+  redis_tier_effective             = var.redis_tier != null ? var.redis_tier : (local.is_prod ? "STANDARD_HA" : "BASIC")
+  redis_memory_size_effective      = var.redis_memory_size_gb != null ? var.redis_memory_size_gb : (local.is_prod ? 5 : 1)
   lb_deletion_protection_effective = var.lb_deletion_protection != null ? var.lb_deletion_protection : local.is_prod
-  log_retention_effective      = var.log_retention_days != null ? var.log_retention_days : (local.is_prod ? 30 : 7)
+  log_retention_effective          = var.log_retention_days != null ? var.log_retention_days : (local.is_prod ? 30 : 7)
 
   # Pub/Sub prefix
   pubsub_topic_prefix = var.pubsub_topic_prefix != "" ? var.pubsub_topic_prefix : "relayer-${var.stellar_network}-${var.environment}"
