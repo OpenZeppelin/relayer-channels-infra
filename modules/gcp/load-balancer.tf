@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------
 resource "google_compute_managed_ssl_certificate" "this" {
   project = var.project_id
-  name    = "${local.app_name}-cert-v2"
+  name    = "${local.app_name}-cert"
 
   managed {
     domains = [var.domain_name]

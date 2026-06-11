@@ -30,8 +30,7 @@ locals {
   # Only create Pub/Sub resources when the backend is pubsub
   pubsub_queue_configs = var.queue_backend == "pubsub" ? local.queue_configs : {}
 
-  # The app expects topic = "{prefix}{queue-name}" and sub = "{prefix}{queue-name}-sub"
-  # where prefix includes the trailing dash (e.g. "relayer-testnet-stg-")
+  # The app appends its own dash: topic = "{prefix}-{queue-name}", sub = "{prefix}-{queue-name}-sub"
   pubsub_prefix = "${local.pubsub_topic_prefix}-"
 }
 

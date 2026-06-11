@@ -62,6 +62,7 @@ resource "google_project_service" "apis" {
     "certificatemanager.googleapis.com",
     "servicenetworking.googleapis.com",
     "cloudkms.googleapis.com",
+    "artifactregistry.googleapis.com",
   ])
 
   project            = var.project_id

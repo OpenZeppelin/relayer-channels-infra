@@ -83,6 +83,17 @@ output "kms_signing_key_id" {
   value       = google_kms_crypto_key.signing.id
 }
 
+# Artifact Registry
+output "artifact_registry_repository" {
+  description = "Artifact Registry repository name"
+  value       = google_artifact_registry_repository.this.repository_id
+}
+
+output "artifact_registry_url" {
+  description = "Artifact Registry Docker URL (e.g. us-east1-docker.pkg.dev/project/repo)"
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.this.repository_id}"
+}
+
 # Cloudflare
 output "cloudflare_worker_name" {
   description = "Cloudflare Worker name (null if Cloudflare is disabled)"
