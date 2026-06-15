@@ -53,7 +53,6 @@ module "relayer_channels" {
   allowed_fund_relayer_ids = var.allowed_fund_relayer_ids
   distributed_mode         = var.distributed_mode
   queue_backend            = var.queue_backend
-  sqs_queue_url_prefix     = var.sqs_queue_url_prefix
   log_level                = var.log_level
 
   # Secrets

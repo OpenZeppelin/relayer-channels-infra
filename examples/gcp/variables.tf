@@ -176,14 +176,8 @@ variable "distributed_mode" {
 
 variable "queue_backend" {
   type        = string
-  description = "Queue backend: 'sqs' (requires AWS creds), 'redis', or 'pubsub'"
-  default     = "sqs"
-}
-
-variable "sqs_queue_url_prefix" {
-  type        = string
-  description = "SQS queue URL prefix. Required when queue_backend is 'sqs'."
-  default     = ""
+  description = "Queue backend: 'pubsub' (recommended) or 'redis'"
+  default     = "pubsub"
 }
 
 variable "log_level" {

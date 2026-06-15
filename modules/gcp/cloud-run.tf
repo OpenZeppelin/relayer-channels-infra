@@ -46,7 +46,6 @@ locals {
     { name = "GCP_REGION", value = var.region },
     { name = "DISTRIBUTED_MODE", value = tostring(var.distributed_mode) },
     { name = "QUEUE_BACKEND", value = var.distributed_mode ? var.queue_backend : "memory" },
-    { name = "SQS_QUEUE_URL_PREFIX", value = var.sqs_queue_url_prefix },
     { name = "PUBSUB_TOPIC_PREFIX", value = local.pubsub_topic_prefix },
     { name = "PUBSUB_PROJECT_ID", value = var.project_id },
   ]

@@ -11,7 +11,7 @@
 
 OpenZeppelin currently runs a hosted Stellar relayer service at `channels.openzeppelin.com` (mainnet) and `channels.openzeppelin.com/testnet` (testnet). The service absorbs the operational complexity of parallel Stellar transaction submission — channel-account pool management, fee bumping, sequence-number arbitration, multi-RPC failover — and exposes a simple HTTP API to downstream callers.
 
-This guide is for infrastructure teams deploying the hosted relayer service on GCP. It mirrors the AWS deployment guide but maps every component to its GCP-native equivalent.
+This guide is for infrastructure teams deploying the hosted relayer service on GCP.
 
 ### What you will end up with
 
@@ -88,21 +88,21 @@ flowchart TD
 
 **Module:** the entire stack above is provisioned by the `gcp` Terraform module in `OpenZeppelin/relayer-channels-infra`. Operators consume it either by cloning the repo or referencing it as an external module from their own Terraform.
 
-### Component mapping (AWS → GCP)
+### Components
 
-| Component | AWS resource | GCP resource | Purpose |
-| --- | --- | --- | --- |
-| Edge gateway | Cloudflare Worker + KV | Cloudflare Worker + KV (same) | API-key issuance, rate limiting, usage tracking |
-| Load balancer | ALB + ACM cert | External HTTPS LB + Google-managed cert | TLS termination, HTTPS-only, health-checked routing |
-| Compute | ECS Fargate Service | Cloud Run v2 Service | Runs the relayer container with autoscaling |
-| State | ElastiCache Redis 7.1 | Memorystore Redis 7.2 | Transaction records, sequence counters, distributed locks |
-| Queue | 8 SQS queues + 8 DLQs | 8 Pub/Sub topics + 8 subscriptions | Distributed transaction processing pipeline |
-| Secrets | SSM Parameter Store SecureString | Secret Manager | API keys, admin secrets, encryption keys |
-| Signing | AWS KMS (ED25519) | Cloud KMS (EC_SIGN_ED25519) | Transaction signing for fund + channel accounts |
-| Image registry | ECR Public / Private | Artifact Registry (private) | Container image source |
-| Observability | CloudWatch Logs + Metrics | Cloud Logging + Cloud Monitoring | Application logs, metrics |
-| Networking | VPC + Security Groups | VPC + VPC Connector + Private Service Access | Private connectivity to Memorystore |
-| Optional monitors | Lambda + EventBridge | Cloud Functions + Cloud Scheduler | Balance-check function |
+| Component | GCP Service | Purpose |
+| --- | --- | --- |
+| Edge gateway | Cloudflare Worker + KV (optional) | API-key issuance, rate limiting, usage tracking |
+| Load balancer | External HTTPS LB + Google-managed cert | TLS termination, HTTPS-only, health-checked routing |
+| Compute | Cloud Run v2 Service | Runs the relayer container with autoscaling |
+| State | Memorystore Redis 7.2 | Transaction records, sequence counters, distributed locks |
+| Queue | 8 Pub/Sub topics + 8 subscriptions | Distributed transaction processing pipeline |
+| Secrets | Secret Manager | API keys, admin secrets, encryption keys |
+| Signing | Cloud KMS (EC_SIGN_ED25519) | Transaction signing for fund + channel accounts |
+| Image registry | Artifact Registry (private) | Container image source |
+| Observability | Cloud Logging + Cloud Monitoring | Application logs, metrics |
+| Networking | VPC + VPC Connector + Private Service Access | Private connectivity to Memorystore |
+| Optional monitors | Cloud Functions + Cloud Scheduler | Balance-check function |
 
 ### App architecture (Channels Plugin runtime)
 
@@ -179,15 +179,12 @@ sequenceDiagram
         end
 
         Plugin->>Redis: update tx record → confirmed
-        Plugin->>PS: publish notification
     end
-
-    Plugin->>Caller: webhook (signed with WEBHOOK_SIGNING_KEY)
 ```
 
 ### Pub/Sub queue topology
 
-The relayer's distributed processing layer uses eight Pub/Sub topics with pull subscriptions. Unlike SQS (which uses DLQs), the Pub/Sub backend handles retries via Redis sorted sets (store-and-run-when-due pattern) — no dead-letter topics are needed.
+The relayer's distributed processing layer uses eight Pub/Sub topics with pull subscriptions. The Pub/Sub backend handles retries via Redis sorted sets (store-and-run-when-due pattern) — no dead-letter topics are needed.
 
 ```mermaid
 flowchart TD
@@ -220,25 +217,26 @@ flowchart TD
     Workers -. enqueue follow-up .-> Topics
 ```
 
-**Key design difference from SQS:** Pub/Sub has no native delayed delivery, so deferred jobs (retries with backoff) are stored in Redis sorted sets keyed by their due time. A due-sweep worker runs every 1–5 seconds per queue type, claims due jobs from Redis, and publishes them to the topic. The topic only ever carries already-due jobs.
+**Deferred job pattern:** Pub/Sub has no native delayed delivery, so deferred jobs (retries with backoff) are stored in Redis sorted sets keyed by their due time. A due-sweep worker runs every 1–5 seconds per queue type, claims due jobs from Redis, and publishes them to the topic. The topic only ever carries already-due jobs.
 
 ### Capacity profile
 
 The reference deployment OpenZeppelin runs handles a **growing ~3M transactions per day** sustained, served by **~1,000 relayers** (fund + channel-account entities combined). The module defaults are sized conservatively for new deployments; expect to grow into something closer to the production shape as your workload scales.
 
-**GCP resource sizing reference (module defaults vs. production-scale):**
+**GCP resource sizing reference:**
 
-| Resource | Module default (prod) | OpenZeppelin production (actual) |
+The table below shows the module defaults and the current GCP deployment values (bumped to handle concurrent transaction load).
+
+| Resource | Module default (prod) | Current GCP deployment |
 | --- | --- | --- |
-| Cloud Run CPU | 1 vCPU | **4–8 vCPU** |
-| Cloud Run memory | 2 Gi | **8–16 Gi** |
-| Min instances | 2 | **3–11** |
-| Max instances | 10 | **20–25** |
+| CPU | 1 vCPU | **4 vCPU** |
+| Memory | 2 Gi | **8 Gi** |
+| Min instances | 2 | **3** |
+| Max instances | 10 | **20** |
 | Redis tier | STANDARD_HA | STANDARD_HA |
-| Redis memory | 5 GB | **5+ GB** |
-| Redis pool max size | 500 (app default) | **3000** |
-| Max connections | 256 (app default) | **4000** |
-| Rate limit (req/sec) | 100 (app default) | **400** |
+| Redis memory | 5 GB | 5 GB |
+
+The module defaults are operationally fine for a new deployment ramping up. The GCP deployment was bumped from defaults to handle concurrent transaction stress testing. Tune further as your workload scales.
 
 ---
 
@@ -279,10 +277,9 @@ The reference deployment OpenZeppelin runs handles a **growing ~3M transactions 
 
 | Repo | Role | Visibility |
 | --- | --- | --- |
-| `OpenZeppelin/relayer-channels-infra` | Primary Terraform modules (AWS + GCP) | Public |
+| `OpenZeppelin/relayer-channels-infra` | Terraform modules + operator CLIs (`oz-relayer`, `oz-channels`) | Public |
 | `OpenZeppelin/openzeppelin-relayer` | The relayer application | Public |
 | `OpenZeppelin/relayer-plugin-channels` | The Channels plugin runtime (TypeScript) | Public |
-| `OpenZeppelin/ops-toolkit` | Operator CLIs (`oz-relayer`, `oz-channels`) | Public |
 
 ---
 
@@ -368,7 +365,12 @@ environment     = "prod"                # or "stg"
 network         = "default"
 subnetwork      = "default"
 domain_name     = "channels.your-company.com"
+# For mainnet: use your private Artifact Registry image (built via the gcp-mainnet workflow,
+# which bakes in private RPC URLs). See Step 5.5 for how to build and push.
 container_image = "us-east1-docker.pkg.dev/my-project/relayer-channels/relayer:mainnet-latest"
+
+# For testnet: you can use the public image via an Artifact Registry remote repo
+# container_image = "us-east1-docker.pkg.dev/my-project/relayer-public/w5h5k2p1/openzeppelin-relayer-channels:testnet-latest"
 
 stellar_network = "mainnet"             # or "testnet"
 queue_backend   = "pubsub"
@@ -548,12 +550,12 @@ These are set by the Terraform module and should not be overridden unless you ha
 
 ### Module-managed secrets (from Secret Manager)
 
-| Container env var | Secret Manager ID | Required? |
-| --- | --- | --- |
-| `API_KEY` | `{app_name}-relayer-api-key` | Yes |
-| `PLUGIN_ADMIN_SECRET` | `{app_name}-channels-admin-secret` | Yes |
-| `WEBHOOK_SIGNING_KEY` | `{app_name}-webhook-signing-key` | Conditional |
-| `STORAGE_ENCRYPTION_KEY` | `{app_name}-storage-encryption-key` | Conditional |
+| Container env var | Secret Manager ID | Required? | Notes |
+| --- | --- | --- | --- |
+| `API_KEY` | `{app_name}-relayer-api-key` | Yes | Authenticates all API requests to the relayer |
+| `PLUGIN_ADMIN_SECRET` | `{app_name}-channels-admin-secret` | Yes | Required for channel management operations |
+| `WEBHOOK_SIGNING_KEY` | `{app_name}-webhook-signing-key` | Optional | Only created when `webhook_signing_key` is set in tfvars. Required if you use webhook notifications; omit if not using webhooks. |
+| `STORAGE_ENCRYPTION_KEY` | `{app_name}-storage-encryption-key` | Optional | Only created when `storage_encryption_key` is set in tfvars. Encrypts sensitive data at rest in Redis. **Strongly recommended for production.** Must be base64-encoded 32 bytes (`openssl rand -base64 32`). |
 
 The `lifecycle { ignore_changes = [secret_data] }` on secret versions means: once created, Terraform will not overwrite the value if you rotate it via `gcloud` or the Console.
 
@@ -699,7 +701,15 @@ oz-relayer tx list -r channels-fund --status pending -p prod-mainnet
 oz-relayer relayer balance channels-fund -p prod-mainnet
 ```
 
-### 7.8 — Viewing logs
+### 7.8 — Observability
+
+The relayer emits structured JSON logs and Prometheus-format metrics. On GCP, these map to Cloud Logging and Cloud Monitoring.
+
+#### Cloud Logging
+
+Cloud Run automatically streams `stdout`/`stderr` to Cloud Logging. The relayer's `LOG_FORMAT=json` produces structured entries with fields like `level`, `target`, `span.tx_id`, `span.relayer_id`, and `span.request_id`.
+
+**Viewing logs:**
 
 ```bash
 # Recent errors
@@ -709,7 +719,90 @@ gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.serv
 # Filter by transaction ID
 gcloud logging read 'resource.type="cloud_run_revision" AND textPayload:"<tx-id>"' \
   --project=your-project --limit=20 --freshness=1h
+
+# Live tail (similar to CloudWatch Live Tail)
+gcloud logging tail 'resource.type="cloud_run_revision" AND resource.labels.service_name="relayer-channels-service"' \
+  --project=your-project
 ```
+
+**GCP Console:** Cloud Logging > Logs Explorer > filter by `resource.type="cloud_run_revision"` and `resource.labels.service_name="<your-service>"`.
+
+#### Cloud Monitoring — Built-in Metrics
+
+Cloud Run and Pub/Sub automatically emit metrics to Cloud Monitoring (no agent required):
+
+**Cloud Run metrics** (GCP Console > Cloud Run > Service > Metrics tab):
+
+| Metric | What it tells you |
+| --- | --- |
+| `run.googleapis.com/container/cpu/utilization` | CPU usage per instance — sustained >80% means scale up |
+| `run.googleapis.com/container/memory/utilization` | Memory usage — sustained >70% risks OOM |
+| `run.googleapis.com/request_count` | Request throughput by response code — watch for 5xx spikes |
+| `run.googleapis.com/request_latencies` | p50/p95/p99 latency — watch for degradation |
+| `run.googleapis.com/container/instance_count` | Active instances — confirms autoscaling behavior |
+| `run.googleapis.com/container/startup_latencies` | Cold-start time — high values affect first-request latency |
+
+**Pub/Sub metrics** (GCP Console > Pub/Sub > Subscription > Metrics tab):
+
+| Metric | What it tells you |
+| --- | --- |
+| `pubsub.googleapis.com/subscription/num_undelivered_messages` | Queue depth — growing backlog means processing is falling behind |
+| `pubsub.googleapis.com/subscription/oldest_unacked_message_age` | How long the oldest message has been waiting — >60s sustained means workers may be stuck |
+| `pubsub.googleapis.com/subscription/pull_message_operation_count` | Pull throughput — confirms workers are active |
+| `pubsub.googleapis.com/subscription/ack_message_operation_count` | Ack throughput — confirms messages are being processed |
+
+**Memorystore metrics** (GCP Console > Memorystore > Instance > Monitoring tab):
+
+| Metric | What it tells you |
+| --- | --- |
+| `redis.googleapis.com/stats/cpu_utilization` | Redis CPU — spikes above 75% sustained need attention |
+| `redis.googleapis.com/stats/memory/usage_ratio` | Memory usage — climb past 70% means capacity planning needed |
+| `redis.googleapis.com/stats/connected_clients` | Connection count — watch for approaching limits |
+| `redis.googleapis.com/stats/commands_processed` | Command throughput — correlates with transaction volume |
+
+#### Log-based Metrics
+
+Create custom metrics from log patterns to track application-specific signals. In **Cloud Logging > Log-based Metrics > Create Metric**:
+
+| Metric name | Filter | Purpose |
+| --- | --- | --- |
+| `relayer/errors` | `resource.type="cloud_run_revision" AND severity>=ERROR` | Total error rate |
+| `relayer/pool_capacity` | `textPayload:"POOL_CAPACITY"` | Channel pool exhaustion events |
+| `relayer/provider_paused` | `textPayload:"provider paused"` | RPC failover events |
+| `relayer/tx_confirmed` | `textPayload:"confirmed"` | Transaction confirmation rate |
+
+Or via gcloud:
+
+```bash
+gcloud logging metrics create relayer-errors \
+  --project=your-project \
+  --description="Relayer error count" \
+  --log-filter='resource.type="cloud_run_revision" AND resource.labels.service_name="relayer-channels-service" AND severity>=ERROR'
+```
+
+#### Alerting
+
+Create alert policies in **Cloud Monitoring > Alerting > Create Policy**:
+
+| Alert | Metric | Condition | Severity |
+| --- | --- | --- | --- |
+| High error rate | `relayer/errors` (log-based) | > 50 errors in 5 min | Critical |
+| Cloud Run high CPU | `container/cpu/utilization` | > 80% for 10 min | Warning |
+| Cloud Run high memory | `container/memory/utilization` | > 70% for 10 min | Warning |
+| Pub/Sub backlog growing | `subscription/num_undelivered_messages` | > 5000 for 10 min | Warning |
+| Pub/Sub old messages | `subscription/oldest_unacked_message_age` | > 300s for 5 min | Critical |
+| Pool exhaustion | `relayer/pool_capacity` (log-based) | > 0 in 5 min | Critical |
+
+Configure notification channels (email, Slack, PagerDuty) in **Cloud Monitoring > Alerting > Notification Channels**.
+
+#### Prometheus Metrics
+
+The relayer exposes Prometheus-format metrics on port `8081` at `/debug/metrics/scrape` (enabled by `METRICS_ENABLED=true`). When `enable_prometheus = true`, the Cloud Run service account has `monitoring.metricWriter` permissions for Google Cloud Managed Prometheus.
+
+To scrape these metrics, you can:
+- Use **Google Cloud Managed Prometheus** with a sidecar collector
+- Use a self-hosted Prometheus instance that scrapes the Cloud Run service
+- Use the built-in Cloud Run metrics (above) for most operational needs
 
 ---
 
@@ -886,15 +979,15 @@ Set via the `MAX_FEE` env var (default `1000000` stroops = 0.1 XLM). Under netwo
 | `stellar_network` | `string` | `"testnet"` | `mainnet` or `testnet` |
 | `fund_relayer_id` | `string` | `"channels-fund"` | Fund relayer ID |
 | `distributed_mode` | `bool` | `true` | Enable distributed queue processing |
-| `queue_backend` | `string` | `"sqs"` | `pubsub` (recommended), `redis`, or `sqs` |
+| `queue_backend` | `string` | `"pubsub"` | `pubsub` (recommended) or `redis` |
 | `log_level` | `string` | `"warn"` | Application log level |
 
 ### Optional — Secrets
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| `webhook_signing_key` | `string` | `""` | Webhook signing key (sensitive) |
-| `storage_encryption_key` | `string` | `""` | Must be base64-encoded 32 bytes (sensitive) |
+| `webhook_signing_key` | `string` | `""` | Webhook signing key (sensitive). Only set if using webhook notifications; omit otherwise. |
+| `storage_encryption_key` | `string` | `""` | Encrypts data at rest in Redis. Must be base64-encoded 32 bytes (sensitive). Strongly recommended for production. |
 
 ### Optional — Redis
 
@@ -911,10 +1004,36 @@ Set via the `MAX_FEE` env var (default `1000000` stroops = 0.1 XLM). Under netwo
 | `enable_cloudflare` | `bool` | `false` | Enable Cloudflare Workers gateway |
 | `cloudflare_zone_id` | `string` | `""` | Required when Cloudflare enabled |
 | `cloudflare_account_id` | `string` | `""` | Required when Cloudflare enabled |
-| `relayer_static_api_key` | `string` | `""` | Static API key for Worker (sensitive) |
-| `key_salt` | `string` | `""` | Salt for hashing user API keys (sensitive) |
+| `relayer_static_api_key` | `string` | `""` | Static API key injected by the Worker upstream (sensitive). See below for how to generate. |
+| `key_salt` | `string` | `""` | Salt for hashing user API keys before storing in KV (sensitive). See below for how to generate. |
 | `gen_ip_rate_hour` | `number` | `2` | Max `/gen` per IP per hour |
 | `relay_rpm_per_key` | `number` | `60` | Max relay RPM per key |
+
+**Generating `relayer_static_api_key` and `key_salt`:**
+
+The `relayer_static_api_key` is the API key the Cloudflare Worker uses to authenticate with the relayer upstream. It should match the `relayer_api_key` you set for the deployment — the Worker replaces every user's Bearer token with this key before forwarding to the relayer.
+
+```bash
+# relayer_static_api_key — use the same value as relayer_api_key
+relayer_static_api_key = "<your relayer_api_key value>"
+
+# key_salt — a random secret used to hash user API keys before storing in Cloudflare KV.
+# Generate with:
+#   openssl rand -base64 32
+key_salt = "<output of openssl rand -base64 32>"
+```
+
+**Example:**
+
+```hcl
+enable_cloudflare      = true
+cloudflare_api_token   = "your-cloudflare-api-token"    # Cloudflare API token with Workers + DNS permissions
+cloudflare_zone_id     = "your-zone-id"                 # From Cloudflare dashboard > your domain > Overview
+cloudflare_account_id  = "your-account-id"              # From Cloudflare dashboard > account home (URL bar)
+relayer_static_api_key = "97638d32-5699-41b5-a501-ce2ec8339fdd"   # same as relayer_api_key
+key_salt               = "wiXOPbO5JgJ3rLn7txnDIiA6s1EmwkRmkStq1UqoWtw="  # openssl rand -base64 32
+cf_analytics_api_token = "your-cloudflare-api-token"    # same token works if it has Analytics Read permission
+```
 
 ### Optional — Load Balancer
 
@@ -942,13 +1061,6 @@ Set via the `MAX_FEE` env var (default `1000000` stroops = 0.1 XLM). Under netwo
 ---
 
 ## 12. Known issues
-
-### Lua cjson i64 serialization bug
-
-The relayer app uses a Lua script for atomic Redis `partial_update` operations. Lua's `cjson` library converts all JSON numbers to f64 doubles, which corrupts large integers (like Stellar sequence numbers) during the decode/encode roundtrip. This causes `"invalid type: floating point, expected i64"` deserialization errors on subsequent status reads.
-
-**Impact:** transaction status tracking fails, but actual on-chain transactions succeed.
-**Fix:** requires a code change in `openzeppelin-relayer` — string-level JSON merging in the Lua script instead of table-level merging.
 
 ### Memorystore Redis TLS
 

@@ -240,18 +240,22 @@ variable "distributed_mode" {
 
 variable "queue_backend" {
   type        = string
-  description = "Queue backend for distributed processing. Use 'sqs' (requires AWS credentials), 'redis' (uses Memorystore — known i64 serialization issue), or 'pubsub' (requires app-side adapter). Ignored when distributed_mode is false."
-  default     = "sqs"
+  description = <<-EOT
+    Queue backend for distributed processing. Ignored when distributed_mode is false.
+    - 'pubsub' (recommended) — uses Pub/Sub topics/subscriptions provisioned by this module. The app handles retries via Redis sorted sets.
+    - 'redis' — uses Memorystore Redis for both storage and queuing. Simpler but no DLQ support.
+  EOT
+  default     = "pubsub"
 
   validation {
-    condition     = contains(["sqs", "redis", "pubsub"], var.queue_backend)
-    error_message = "queue_backend must be 'sqs', 'redis', or 'pubsub'."
+    condition     = contains(["redis", "pubsub"], var.queue_backend)
+    error_message = "queue_backend must be 'redis' or 'pubsub'."
   }
 }
 
-variable "sqs_queue_url_prefix" {
+variable "pubsub_topic_prefix" {
   type        = string
-  description = "SQS queue URL prefix (e.g. 'https://sqs.us-east-1.amazonaws.com/123456789/relayer-testnet-stg-'). Required when queue_backend is 'sqs'."
+  description = "Prefix for Pub/Sub topic and subscription names (e.g. 'relayer-mainnet-prod'). Auto-derived as 'relayer-{stellar_network}-{environment}' when empty. The app appends a dash and queue name (e.g. 'relayer-mainnet-prod-transaction-request')."
   default     = ""
 }
 
@@ -317,14 +321,6 @@ variable "redis_version" {
   default     = "REDIS_7_2"
 }
 
-# ---------------------------------------------------------------------------
-# Pub/Sub (replaces SQS)
-# ---------------------------------------------------------------------------
-variable "pubsub_topic_prefix" {
-  type        = string
-  description = "Prefix for Pub/Sub topic names"
-  default     = ""
-}
 
 # ---------------------------------------------------------------------------
 # Cloud Functions (optional monitoring)
