@@ -270,7 +270,7 @@ The module defaults are operationally fine for a new deployment ramping up. The 
 
 ### Stellar-side prerequisites
 
-- **Soroban RPC access** — at least two independent providers for mainnet. RPC URLs are baked into the container image at build time.
+- **Soroban RPC access** - At least two independent private providers for mainnet (recommended). Public Image has public RPC URL baked into the container image at build time.
 - **Initial XLM funding** — fund the fund relayer's Stellar account, then bootstrap channel accounts from that balance using `oz-channels bootstrap`.
 
 ### Reference repositories
