@@ -827,7 +827,6 @@ To scrape these metrics, you can:
 | `POOL_CAPACITY` | Channel-account pool exhausted |
 | `LOCKED_CONFLICT` | Two workers tried to acquire the same channel |
 | `TRY_AGAIN_LATER` | Horizon-side throttling |
-| `floating point` | Lua cjson serialization bug (see Known Issues) |
 
 ### Redis inspection
 
@@ -902,7 +901,7 @@ At ~23 TPS sustained with ~5s Stellar settlement and 1.5× safety: `23 × 5 × 1
 
 Google-managed certificates require DNS to point to the LB IP before they provision. With Cloudflare enabled, you must temporarily point DNS directly to the LB IP (bypass Cloudflare proxy), wait for cert to become ACTIVE, then switch to the Cloudflare CNAME.
 
-If the cert is stuck in `FAILED_NOT_VISIBLE`, recreate it by bumping the cert name suffix in `load-balancer.tf` and re-applying.
+> **Note:** If the cert is stuck in `FAILED_NOT_VISIBLE` for more than 30 minutes, it likely needs to be recreated. Bump the cert name suffix in `load-balancer.tf` (e.g., `-cert-v2` → `-cert-v3`) and re-apply. The `create_before_destroy` lifecycle ensures the new cert is provisioned before the old one is removed, avoiding downtime.
 
 ### 10.3 — VPC connector CIDR overlap
 
