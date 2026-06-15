@@ -484,14 +484,24 @@ SIGNER_ID="<signer-id-from-above>" \
 
 ### Step 5.9 — Bootstrap the channel-account pool
 
-Install the `oz-channels` CLI from `OpenZeppelin/ops-toolkit`:
+Install the `oz-channels` CLI from the `cli/` directory in this repo:
 
 ```bash
-git clone https://github.com/OpenZeppelin/ops-toolkit.git
-cd ops-toolkit && bun install
+# From the root of relayer-channels-infra
+cd cli
+bun install
+bun run build
+
+# Link the CLIs globally
 cd packages/oz-channels && bun link
 cd ../oz-relayer && bun link
+
+# Verify
+oz-channels --help
+oz-relayer --help
 ```
+
+> Requires [Bun](https://bun.sh) runtime (Node.js 22+ compatible).
 
 Create a profile and bootstrap:
 
