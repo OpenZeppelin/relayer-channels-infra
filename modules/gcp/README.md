@@ -365,12 +365,9 @@ environment     = "prod"                # or "stg"
 network         = "default"
 subnetwork      = "default"
 domain_name     = "channels.your-company.com"
-# For mainnet: use your private Artifact Registry image (built via the gcp-mainnet workflow,
-# which bakes in private RPC URLs). See Step 5.5 for how to build and push.
-container_image = "us-east1-docker.pkg.dev/my-project/relayer-channels/relayer:mainnet-latest"
-
-# For testnet: you can use the public image via an Artifact Registry remote repo
-# container_image = "us-east1-docker.pkg.dev/my-project/relayer-public/w5h5k2p1/openzeppelin-relayer-channels:testnet-latest"
+# Use the public image via an Artifact Registry remote repo (see Step 5.5)
+# After deployment, override the public RPC URLs with your private providers (see Step 5.8)
+container_image = "us-east1-docker.pkg.dev/my-project/ecr-public/w5h5k2p1/openzeppelin-relayer-channels:mainnet-latest"
 
 stellar_network = "mainnet"             # or "testnet"
 queue_backend   = "pubsub"
@@ -390,41 +387,31 @@ export TF_VAR_webhook_signing_key="$(openssl rand -hex 32)"
 export TF_VAR_storage_encryption_key="$(openssl rand -base64 32)"   # must be base64-encoded 32 bytes
 ```
 
-### Step 5.5 — Build and push the container image
+### Step 5.5 — Container image
 
-The container image bundles the relayer binary, Channels plugin, and network configuration (including private RPC URLs for mainnet). A GitHub Actions workflow (`gcp-mainnet.yml` in `openzeppelin-relayer-infra`) automates this:
+OpenZeppelin publishes pre-built container images to ECR Public. These can be consumed via an **Artifact Registry remote repository** that proxies ECR Public — Cloud Run pulls from Artifact Registry natively.
 
-1. Clones `openzeppelin-relayer` and builds the Channels plugin
-2. Bakes private Stellar RPC URLs into `config/networks/stellar.json`
-3. Builds the Docker image with the Channels plugin
-4. Pushes to your private Artifact Registry
+**Setting up an Artifact Registry remote repo (one-time):**
 
-**Prerequisites:**
-- Add `GCP_SA_KEY_JSON` secret to the GitHub repo (the service account key JSON content)
-- Add `STELLAR_MAINNET_RPC_URL_QUICKNODE` and `STELLAR_MAINNET_RPC_URL_ANKR` secrets
+1. Go to GCP Console > **Artifact Registry** > **Create Repository**
+2. Format: **Docker**, Mode: **Remote**, Remote source: **Custom**, URL: `https://public.ecr.aws`
+3. Name: e.g. `ecr-public`, Region: your region
 
-**Trigger the workflow:**
-GitHub Actions > `(GCP Mainnet) Build and Deploy` > Run workflow > enter version tag.
+Then reference the image in your tfvars:
 
-**Manual build alternative:**
-
-```bash
-git clone https://github.com/OpenZeppelin/openzeppelin-relayer.git
-cd openzeppelin-relayer
-
-# Inject private RPC URLs
-jq --arg url1 "$RPC_URL_1" --arg url2 "$RPC_URL_2" \
-  '.networks |= map(if .network == "mainnet" then .rpc_urls = [$url1, $url2] else . end)' \
-  config/networks/stellar.json | sponge config/networks/stellar.json
-
-# Build
-docker build -t relayer:mainnet-1.0.0 -f Dockerfile.production .
-
-# Push to Artifact Registry
-gcloud auth configure-docker us-east1-docker.pkg.dev
-docker tag relayer:mainnet-1.0.0 us-east1-docker.pkg.dev/my-project/relayer-channels/relayer:mainnet-1.0.0
-docker push us-east1-docker.pkg.dev/my-project/relayer-channels/relayer:mainnet-1.0.0
+```hcl
+container_image = "us-east1-docker.pkg.dev/my-project/ecr-public/w5h5k2p1/openzeppelin-relayer-channels:mainnet-latest"
 ```
+
+**Tag scheme:**
+
+| Tag pattern | Points at |
+| --- | --- |
+| `mainnet-<version>` (e.g. `mainnet-1.4.2`) | Stellar mainnet build, pinned. **Use this in production.** |
+| `mainnet-latest` | Most recent mainnet build. Convenient for dev; will move under you. |
+| `testnet-<version>` / `testnet-latest` | Stellar testnet equivalents. |
+
+> **Note:** The public image ships with the default public Soroban RPC endpoint (`mainnet.sorobanrpc.com`). For production, you **must** override the RPC URLs with your own private providers after deployment — see **Step 5.8**.
 
 ### Step 5.6 — Plan and apply
 
@@ -462,7 +449,39 @@ The Google-managed SSL certificate requires DNS to point to the load balancer IP
 4. Switch Route53 to CNAME: `channels.your-company.com` → `channels.your-company.com.cdn.cloudflare.net`
 5. Turn Cloudflare proxy ON (orange cloud)
 
-### Step 5.8 — Create the fund-relayer signer
+### Step 5.8 — Configure private Stellar RPC endpoints
+
+The public container image ships with the default public Soroban RPC endpoint (`https://mainnet.sorobanrpc.com`). For production workloads, the public RPC will rate-limit your requests, causing transaction failures under load.
+
+After the service is up and healthy, override the RPC URLs with your own private providers (e.g., QuickNode, Alchemy, Ankr). This is a **one-time operation** — the updated config is persisted in Redis and survives container restarts.
+
+```bash
+curl -s \
+  -H "Authorization: Bearer <your-relayer-api-key>" \
+  -H "Content-Type: application/json" \
+  -X PATCH https://channels.your-company.com/api/v1/networks/stellar:mainnet \
+  -d '{
+    "rpc_urls": [
+      { "url": "https://your-primary-rpc-provider.com/your-api-key", "weight": 100 },
+      { "url": "https://your-secondary-rpc-provider.com/your-api-key", "weight": 100 }
+    ]
+  }'
+```
+
+Verify the update:
+
+```bash
+curl -s \
+  -H "Authorization: Bearer <your-relayer-api-key>" \
+  "https://channels.your-company.com/api/v1/networks?per_page=200" \
+  | jq '.data[] | select(.id=="stellar:mainnet") | .rpc_urls'
+```
+
+> **Note:** You only need to re-run this if you perform a `RESET_STORAGE_ON_START=true` restart, which wipes all Redis data including the network config. Normal restarts and redeployments preserve the config.
+
+We recommend at least two independent RPC providers for mainnet for redundancy. The relayer load-balances across the listed URLs by weight and rotates on failures.
+
+### Step 5.9 — Create the fund-relayer signer
 
 Create a GCP Cloud KMS signer using the provided script:
 
@@ -482,7 +501,7 @@ SIGNER_ID="<signer-id-from-above>" \
 ./scripts/fund-relayer.sh
 ```
 
-### Step 5.9 — Bootstrap the channel-account pool
+### Step 5.10 — Bootstrap the channel-account pool
 
 Install the `oz-channels` CLI from the `cli/` directory in this repo:
 
@@ -516,7 +535,7 @@ oz-channels bootstrap --to 200 --dry-run -p prod-mainnet
 oz-channels bootstrap --to 200 -p prod-mainnet
 ```
 
-### Step 5.10 — Verify end-to-end
+### Step 5.11 — Verify end-to-end
 
 ```bash
 # Health check
