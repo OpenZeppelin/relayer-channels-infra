@@ -287,12 +287,21 @@ GCP_SA_KEY_FILE="$HOME/path/to/sa-key.json" \
 ./scripts/gcp-kms-signer.sh
 ```
 
-Then create the fund relayer:
+Then create the fund relayer via the relayer API:
 
 ```bash
-ENV=mainnet API_KEY="$TF_VAR_relayer_api_key" \
-SIGNER_ID="<signer-id-from-above>" \
-./scripts/fund-relayer.sh
+curl -s -X POST https://channels.your-company.com/api/v1/relayers \
+  -H "Authorization: Bearer $TF_VAR_relayer_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "channels-fund",
+    "name": "channels-fund",
+    "network": "mainnet",
+    "signer_id": "<signer-id-from-above>",
+    "network_type": "stellar",
+    "paused": false,
+    "policies": { "min_balance": 0, "fee_payment_strategy": "relayer" }
+  }'
 ```
 
 ### 9. Bootstrap channels
@@ -519,6 +528,20 @@ GET "oz-relayer:relayer:channels-fund:tx:<tx-id>"
 | `artifactregistry.reader` | per-repo |
 
 **KMS:** `EC_SIGN_ED25519`, SOFTWARE protection. Rotation = new key → new signer → new on-chain account → drain old → retire.
+
+---
+
+## Post-restart checklist
+
+If you ever restart with `RESET_STORAGE_ON_START=true` (which wipes Redis), you need to redo the following — the service will be up but non-functional until these are done:
+
+1. **Re-create the signer** — `./scripts/gcp-kms-signer.sh` (step 8)
+2. **Re-create the fund relayer** — via the relayer API or your fund-relayer script, using the new signer ID
+3. **Re-run the RPC override** — the PATCH to `/api/v1/networks/stellar:mainnet` with your private providers (step 7)
+4. **Re-bootstrap channels** — `oz-channels bootstrap --to <N> -p <env>` (step 9)
+5. **Fund the fund relayer** — if the on-chain account was recreated, send XLM to the new address
+
+Normal restarts and redeployments (without `RESET_STORAGE_ON_START=true`) preserve everything in Redis — none of the above is needed.
 
 ---
 
