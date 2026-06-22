@@ -179,7 +179,9 @@ key_salt               = "<openssl rand -base64 32>"
 cf_analytics_api_token = "cloudflare-analytics-token"
 ```
 
-Without Cloudflare, a Route53 alias A record points directly at the ALB. You should restrict ingress via `alb_allowed_ipv4_cidrs` or it accepts all traffic.
+Without Cloudflare, a Route53 alias A record points directly at the ALB. The `/gen` endpoint is not available — there's no self-service API-key generation. Callers authenticate directly with the `relayer_api_key`. If you need per-user keys, rate limiting, or usage tracking without Cloudflare, you'd need your own API gateway or proxy layer.
+
+You should also restrict ALB ingress via `alb_allowed_ipv4_cidrs` or it accepts all traffic.
 
 ### Cross-account DNS
 
@@ -501,6 +503,18 @@ Eight standard queues handle distributed transaction processing, each backed by 
 | `webhook_signing_key != ""` | SSM parameter |
 | `storage_encryption_key != ""` | SSM parameter |
 | `alb_access_logs_bucket != ""` | ALB access logging |
+
+## Post-restart checklist
+
+If you ever restart with `RESET_STORAGE_ON_START=true` (which wipes Redis), you need to redo the following:
+
+1. **Re-create the signer** — call the `/api/v1/signers` endpoint with your KMS key config
+2. **Re-create the fund relayer** — via the relayer API or your fund-relayer script, using the new signer ID
+3. **Re-run the RPC override** — the PATCH to `/api/v1/networks/stellar:mainnet` with your private providers (step 5)
+4. **Re-bootstrap channels** — `oz-channels bootstrap --to <N> -p <env>`
+5. **Fund the fund relayer** — if the on-chain account was recreated, send XLM to the new address
+
+Normal restarts and redeployments preserve everything in Redis — none of the above is needed.
 
 ## Troubleshooting
 
