@@ -1,4 +1,4 @@
-# Relayer Channels — GCP Deployment
+# Hosted Stellar Relayer on GCP: Operator Deployment Guide
 
 Terraform module for deploying the Stellar Relayer Channels service on GCP. Runs on Cloud Run with Memorystore Redis, Pub/Sub for job processing, Cloud KMS for transaction signing, and optional Cloudflare Workers for API-key management.
 
@@ -141,7 +141,7 @@ sequenceDiagram
 
 ### How Pub/Sub queues work
 
-Eight topics with pull subscriptions handle the transaction pipeline. Pub/Sub has no native delayed delivery, so deferred jobs (retries with backoff) sit in Redis sorted sets until due, then get published to the topic. The topic only ever carries ready-to-process jobs — no dead-letter topics needed.
+Eight topics with pull subscriptions handle the transaction pipeline. Pub/Sub has no native delayed delivery, so deferred jobs (retries with backoff) sit in Redis sorted sets until due, then get published to the topic. The topic only ever carries ready-to-process jobs; no dead-letter topics needed.
 
 ```mermaid
 flowchart TD
@@ -173,9 +173,9 @@ flowchart TD
 
 ### How channels works on Stellar
 
-Every Stellar transaction has a source account with a monotonically increasing sequence number. Only one transaction per source account can be in-flight at a time — this is the constraint that caps parallel throughput on Stellar.
+Every Stellar transaction has a source account with a monotonically increasing sequence number. Only one transaction per source account can be in-flight at a time; this is the constraint that caps parallel throughput on Stellar.
 
-The Channels service works around it with a pool of dedicated source accounts (channel accounts). Each in-flight transaction acquires one channel account from the pool, uses its sequence number, and releases it after confirmation. A separate fund account holds the XLM balance. When submitting, the service wraps the channel-signed envelope in a fee-bump transaction — a Stellar primitive that lets a second account pay the network fee. Both accounts are backed by Cloud KMS ED25519 keys.
+The Channels service works around it with a pool of dedicated source accounts (channel accounts). Each in-flight transaction acquires one channel account from the pool, uses its sequence number, and releases it after confirmation. A separate fund account holds the XLM balance. When submitting, the service wraps the channel-signed envelope in a fee-bump transaction, a Stellar primitive that lets a second account pay the network fee. Both accounts are backed by Cloud KMS ED25519 keys.
 
 The pool size you provision in step 9 is your throughput ceiling. See the Gotchas section for the sizing formula.
 
@@ -227,14 +227,14 @@ The module auto-adjusts sizing by environment (`prod` vs everything else):
 
 ### Stellar-side prerequisites
 
-- **Soroban RPC access** — at least two independent private providers from different operators recommended for mainnet. The public image ships with the default public RPC; you override it after deployment (see step 7).
+- **Soroban RPC access:** at least two independent private providers from different operators recommended for mainnet. The public image ships with the default public RPC; you override it after deployment (see step 7).
 - **XLM** to fund the relayer's Stellar account and bootstrap channel accounts. Budget at least 250 XLM for 200 channel accounts plus the fund account.
 
 ### Repos you'll reference
 
 | Repo | What it is |
 | --- | --- |
-| `OpenZeppelin/relayer-channels-infra` | This repo — Terraform modules + operator CLIs |
+| `OpenZeppelin/relayer-channels-infra` | This repo: Terraform modules + operator CLIs |
 | `OpenZeppelin/openzeppelin-relayer` | The relayer application |
 | `OpenZeppelin/relayer-plugin-channels` | Channels plugin (TypeScript) |
 
@@ -341,7 +341,7 @@ Then reference it in `container_image` in your tfvars (as shown in step 4).
 
 Tag scheme: `mainnet-<version>` (pinned, use in prod), `mainnet-latest` (moves), `testnet-<version>`, `testnet-latest`.
 
-> The public image ships with `mainnet.sorobanrpc.com` as the default RPC. Override it with private providers after deployment — see step 7.
+> The public image ships with `mainnet.sorobanrpc.com` as the default RPC. Override it with private providers after deployment (see step 7).
 
 ### 6. Deploy
 
@@ -381,7 +381,7 @@ The Google-managed cert needs DNS pointing at the LB IP before it provisions.
 
 ### 8. Override RPC endpoints
 
-The public image uses the free public Soroban RPC, which rate-limits under load. After the service is healthy, override it with your private providers. This is a **one-time call** — the config persists in Redis.
+The public image uses the free public Soroban RPC, which rate-limits under load. After the service is healthy, override it with your private providers. This is a **one-time call** (the config persists in Redis).
 
 ```bash
 curl -s \
@@ -461,7 +461,7 @@ curl -sS https://channels.your-company.com/api/v1/health
 oz-channels smoke run -p prod-mainnet
 ```
 
-A healthy service returns `{"status":"ok"}`. The smoke test submits a test transaction end-to-end and polls for confirmation — success prints a confirmed transaction ID. If it times out, check channel pool size and fund account balance before debugging further.
+A healthy service returns `{"status":"ok"}`. The smoke test submits a test transaction end-to-end and polls for confirmation; success prints a confirmed transaction ID. If it times out, check channel pool size and fund account balance before debugging further.
 
 ---
 
@@ -559,11 +559,11 @@ key_salt               = "<openssl rand -base64 32>"
 cf_analytics_api_token = "your-token"
 ```
 
-`relayer_static_api_key` should match your `relayer_api_key` — the Worker swaps every user's Bearer token for this key upstream. `key_salt` is used to hash user keys before storing in KV.
+`relayer_static_api_key` should match your `relayer_api_key`; the Worker swaps every user's Bearer token for this key upstream. `key_salt` is used to hash user keys before storing in KV.
 
 ### Without Cloudflare
 
-The `/gen` endpoint is not available — there's no self-service API-key generation. Callers authenticate directly with the `relayer_api_key` you configured. If you need per-user keys or rate limiting without Cloudflare, build that into your own API gateway layer in front of the load balancer.
+The `/gen` endpoint is not available; there's no self-service API-key generation. Callers authenticate directly with the `relayer_api_key` you configured. If you need per-user keys or rate limiting without Cloudflare, build that into your own API gateway layer in front of the load balancer.
 
 ---
 
@@ -586,7 +586,7 @@ min_instance_count = 3
 max_instance_count = 20
 ```
 
-Apply — no downtime.
+Apply. No downtime.
 
 ### Channel pool
 
@@ -688,7 +688,7 @@ The relayer exposes metrics at `:8081/debug/metrics/scrape`. Scrape with Google 
 
 ### Stellar-side monitoring
 
-GCP metrics reflect service health. These check the Stellar network side — monitor both.
+GCP metrics reflect service health. These check the Stellar network side; monitor both.
 
 **Fund account balance:**
 
@@ -722,7 +722,7 @@ Almost every failure belongs to a specific layer. Decide which one before readin
 
 A request that never returns a `tx_id` failed in the synchronous path (edge, LB, auth, fee budget, enqueue). A request that returned a `tx_id` but never confirmed failed in the async path (channel acquisition, build/simulate, sign, fee-bump, submit, status poll). Match the symptom to the layer, then pull the logs for that component.
 
-Pool exhaustion, sequence drift, and an RPC throttle all look like "transactions are failing" from the outside — each lives in a different layer and has a different fix.
+Pool exhaustion, sequence drift, and an RPC throttle all look like "transactions are failing" from the outside; each lives in a different layer and has a different fix.
 
 | You have | Do this |
 | --- | --- |
@@ -736,7 +736,7 @@ Common log patterns:
 | Pattern | Means |
 | --- | --- |
 | `provider paused` | RPC failover kicked in |
-| `POOL_CAPACITY` | Channel pool exhausted — bootstrap more |
+| `POOL_CAPACITY` | Channel pool exhausted; bootstrap more |
 | `LOCKED_CONFLICT` | Two workers grabbed the same channel |
 | `TRY_AGAIN_LATER` | Horizon throttling |
 
@@ -789,21 +789,21 @@ The Cloud Run SA (`{app_name}-run`) gets:
 
 ### Cloud KMS
 
-`EC_SIGN_ED25519`, SOFTWARE protection. Rotation: provision a new key, register a new signer and relayer, fund the new on-chain account, drain the old one, retire it.
+`EC_SIGN_ED25519`, SOFTWARE protection. Rotation: provision a new key, register a new signer and relayer, fund the new onchain account, drain the old one, retire it.
 
 ---
 
 ## Post-restart checklist
 
-If you ever restart with `RESET_STORAGE_ON_START=true` (which wipes Redis), you need to redo the following — the service will be up but non-functional until these are done:
+If you ever restart with `RESET_STORAGE_ON_START=true` (which wipes Redis), you need to redo the following (the service will be up but non-functional until these are done):
 
-1. **Re-create the signer** — `./scripts/gcp-kms-signer.sh` (step 9)
-2. **Re-create the fund relayer** — via the relayer API using the new signer ID
-3. **Re-run the RPC override** — the PATCH to `/api/v1/networks/stellar:mainnet` (step 8)
-4. **Re-bootstrap channels** — `oz-channels bootstrap --to <N> -p <env>` (step 10)
-5. **Fund the fund relayer** — if the on-chain account was recreated, send XLM to the new address
+1. **Re-create the signer:** `./scripts/gcp-kms-signer.sh` (step 9)
+2. **Re-create the fund relayer:** via the relayer API using the new signer ID
+3. **Re-run the RPC override:** the PATCH to `/api/v1/networks/stellar:mainnet` (step 8)
+4. **Re-bootstrap channels:** `oz-channels bootstrap --to <N> -p <env>` (step 10)
+5. **Fund the fund relayer:** if the onchain account was recreated, send XLM to the new address
 
-Normal restarts and redeployments (without `RESET_STORAGE_ON_START=true`) preserve everything in Redis — none of the above is needed.
+Normal restarts and redeployments (without `RESET_STORAGE_ON_START=true`) preserve everything in Redis; none of the above is needed.
 
 ---
 
@@ -815,7 +815,7 @@ Normal restarts and redeployments (without `RESET_STORAGE_ON_START=true`) preser
 
 ### 2. SSL cert provisioning
 
-Google needs DNS pointing at the LB IP before it issues the cert. With Cloudflare, turn proxy off first, wait for ACTIVE, then proxy back on. If the cert stays `FAILED_NOT_VISIBLE` for 30+ min, bump the cert name suffix in `load-balancer.tf` and re-apply — `create_before_destroy` swaps it without downtime.
+Google needs DNS pointing at the LB IP before it issues the cert. With Cloudflare, turn proxy off first, wait for ACTIVE, then proxy back on. If the cert stays `FAILED_NOT_VISIBLE` for 30+ min, bump the cert name suffix in `load-balancer.tf` and re-apply (`create_before_destroy` swaps it without downtime).
 
 ### 3. VPC connector CIDR overlap
 
@@ -835,7 +835,7 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 
 ### 7. Fee-bump tuning under congestion
 
-`MAX_FEE` defaults to 1M stroops (0.1 XLM). Raise to 10M during network congestion. The plugin uses static fees — no automatic bumping on `INSUFFICIENT_FEE`.
+`MAX_FEE` defaults to 1M stroops (0.1 XLM). Raise to 10M during network congestion. The plugin uses static fees with no automatic bumping on `INSUFFICIENT_FEE`.
 
 ---
 
@@ -855,7 +855,7 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 | `relayer_api_key` | `string` | Relayer API key (sensitive) |
 | `channels_admin_secret` | `string` | Admin secret (sensitive) |
 
-### Optional — core
+### Optional: core
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -863,7 +863,7 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 | `name_suffix_environment` | `bool` | `true` | Append `-{env}` to names (auto-off for prod) |
 | `labels` | `map(string)` | `{}` | Labels for all resources |
 
-### Optional — networking
+### Optional: networking
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -872,7 +872,7 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 | `connector_max_instances` | `number` | `3` | Max connector instances |
 | `connector_ip_cidr_range` | `string` | `"10.8.0.0/28"` | CIDR for the VPC connector (/28, must not overlap) |
 
-### Optional — container / Cloud Run
+### Optional: container / Cloud Run
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -885,7 +885,7 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 | `health_check_path` | `string` | `"/api/v1/health"` | Probe path |
 | `container_environment` | `list(object)` | `[]` | Additional env vars (user overrides win) |
 
-### Optional — application
+### Optional: application
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -895,14 +895,14 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 | `queue_backend` | `string` | `"pubsub"` | `pubsub` (recommended) or `redis` |
 | `log_level` | `string` | `"warn"` | App log level |
 
-### Optional — secrets
+### Optional: secrets
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `webhook_signing_key` | `string` | `""` | Only set if using webhooks |
 | `storage_encryption_key` | `string` | `""` | Base64-encoded 32 bytes. Recommended for prod. |
 
-### Optional — Redis
+### Optional: Redis
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -910,7 +910,7 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 | `redis_memory_size_gb` | `number` | `null` | Auto: 5 prod, 1 other |
 | `redis_version` | `string` | `"REDIS_7_2"` | Redis version |
 
-### Optional — Cloudflare
+### Optional: Cloudflare
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -922,7 +922,7 @@ A VPC can hold only one Private Service Access connection to `servicenetworking.
 | `gen_ip_rate_hour` | `number` | `2` | Max `/gen` per IP per hour |
 | `relay_rpm_per_key` | `number` | `60` | Max relay RPM per key |
 
-### Optional — load balancer
+### Optional: load balancer
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -948,6 +948,6 @@ See `variables.tf` for the full list including Cloud Functions and additional ne
 
 ## Known issues
 
-**Redis TLS disabled** — the relayer binary doesn't support TLS for Redis connections. Memorystore is only reachable via Private Service Access (VPC peering), so traffic stays within Google's network.
+**Redis TLS disabled:** the relayer binary doesn't support TLS for Redis connections. Memorystore is only reachable via Private Service Access (VPC peering), so traffic stays within Google's network.
 
-**Secrets as plain env vars** — secrets are passed as Cloud Run env vars rather than Secret Manager `secret_key_ref` references. This is a workaround for a deployment issue. Plan to switch to proper secret references.
+**Secrets as plain env vars:** secrets are passed as Cloud Run env vars rather than Secret Manager `secret_key_ref` references. This is a workaround for a deployment issue. Plan to switch to proper secret references.

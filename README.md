@@ -1529,19 +1529,6 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 | `OpenZeppelin/openzeppelin-relayer` — `examples/channels-plugin-example` | Source of the Docker image that runs in Fargate |
 | `OpenZeppelin/relayer-plugin-channels` | The Channels plugin runtime (TypeScript) |
 
-### Reference: full module variable surface
-
-See the `relayer-channels-infra/README.md` for the canonical variable reference. Highlights for operators familiar with AWS but new to this module:
-
-- **Networking:** `vpc_id`, `vpc_cidr`, `public_subnet_ids` (2+ AZs), optional `alb_allowed_ipv4_cidrs` for IP restriction
-- **DNS:** `domain_name`, `route53_zone_id` or `route53_zone_name`, optional `acm_certificate_arn` for BYO cert
-- **Cloudflare:** `enable_cloudflare`, `cloudflare_zone_id`, `cloudflare_account_id`, `relayer_static_api_key`, `key_salt`, `cf_analytics_api_token`
-- **Container:** `container_image` (or leave empty to create ECR), `cpu`/`memory`/`desired_count`, `cpu_architecture` (X86_64 or ARM64), `health_check_path`
-- **Application:** `stellar_network`, `fund_relayer_id`, `allowed_fund_relayer_ids`, `distributed_mode`, `log_level`
-- **Secrets (required):** `relayer_api_key`, `channels_admin_secret`. **Optional:** `webhook_signing_key`, `storage_encryption_key`
-- **Redis:** `redis_node_type` (env-default), `redis_num_cache_clusters` (env-default), `redis_engine_version`, `redis_snapshot_retention_days`
-- **Monitoring opt-ins:** `enable_balance_check_lambda`, `enable_restart_on_alarm_lambda`, `enable_cloudwatch_exporter`, `enable_prometheus`
-
 ### Reference: SQS queue tuning summary
 
 | Queue | Visibility timeout | Max receives | Purpose |
