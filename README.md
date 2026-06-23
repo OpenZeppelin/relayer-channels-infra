@@ -1097,7 +1097,28 @@ Two opt-in Lambda functions are provided by the module:
 
 ## 8. Debugging guide
 
-When a transaction fails, times out, or behaves unexpectedly, the debugging workflow correlates data across three sources: the relayer API, CloudWatch logs, and the Stellar Horizon API. This section is derived from the `channels-debug` operational pattern OpenZeppelin uses internally.
+When a transaction fails, times out, or behaves unexpectedly, start by locating the failure in the request lifecycle before pulling logs.
+
+Every transaction follows two paths. The synchronous path covers everything from the client request through auth, fee-budget check, and SQS enqueue, and returns a `tx_id` as the 202 acknowledgment. The async path covers everything after: channel acquisition, transaction build and simulation, channel signing, fund-account fee-bump, RPC submission, and status polling to confirmation. Match the symptom to the path before opening CloudWatch.
+
+If the request never returned a `tx_id`, the failure is in the synchronous path. Check ECS service events, ALB target health, and the relayer logs for the inbound request. If the request returned a `tx_id` but the transaction never confirmed, the failure is in the async path. Start with `oz-relayer tx show <tx-id>` to get the transaction's current state, then trace from there.
+
+Pool exhaustion, sequence drift, and an RPC throttle can all present as "transactions are failing" from the outside; each lives in a different layer and has a different fix.
+
+**Failure taxonomy**
+
+| Symptom | Layer | First action |
+| --- | --- | --- |
+| No `tx_id` returned | Synchronous: auth, fee budget, or enqueue | Check ECS service events and ALB target health; tail relayer logs for the inbound request |
+| `tx_id` returned, never confirmed | Async: channel acquire, build, sign, submit, or poll | `oz-relayer tx show <tx-id> -r channels-fund --json -p <env>` |
+| `POOL_CAPACITY` errors | Channel pool exhausted | §10.1; then bootstrap more channels |
+| `INSUFFICIENT_FEE` / stuck at `submitted` | Fee ceiling below network floor | §10.2; raise `MAX_FEE` |
+| `TRY_AGAIN_LATER` in logs | Horizon throttle or per-channel saturation | §10.3; check fund account balance and RPC provider health |
+| `provider paused` in logs | RPC failover triggered | §8.4; query each RPC provider's health endpoint |
+| Sequence errors / `LOCKED_CONFLICT` | Redis sequence counter drift or lock contention | §8.7; inspect the affected channel's Redis key |
+| DLQ accumulation | Repeated worker failures | §10.5; inspect DLQ messages for the root error |
+
+The debugging workflow correlates data across three sources: the relayer API, CloudWatch logs, and the Stellar Horizon API.
 
 ### 8.1: Pick your entry point
 
