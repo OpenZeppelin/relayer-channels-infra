@@ -729,6 +729,27 @@ flowchart TD
 
 **Production sizing reference:** the reference deployment runs ~1,000 relayers total. For a fresh deploy that needs to handle the full reference load, bootstrap several hundred channel accounts. For lower-load deployments, start with 50–100 and scale incrementally.
 
+#### Scaling beyond ~100 channels
+
+When scaling the pool aggressively (e.g. 100 → 1000 channels), `oz-channels bootstrap` will start failing with `TRY_AGAIN_LATER` or `tx_bad_seq` errors from Horizon. This happens because every `createAccount` operation uses the fund relayer (`channels-fund`) as the transaction source, serializing all submissions on a single sequence number. Under high concurrency, Horizon rejects the overlapping submissions.
+
+Use `scripts/fund-new-channels.ts` instead — it routes the transaction source through an existing funded channel account (e.g. `channel-0001`) while keeping the fund relayer as the operation source (so the treasury still pays). It also batches up to 100 `createAccount` ops per transaction, so a 100→1000 scale-up fits in ~9 submissions.
+
+```bash
+npx tsx scripts/fund-new-channels.ts \
+  --env mainnet \
+  --api-key <key> \
+  --source-relayer channel-0001 \
+  --fund-relayer channels-fund \
+  --from 101 --to 1000 \
+  --starting-balance 2 \
+  --report fund-report.json
+```
+
+The script is idempotent — it preflights every slot via the relayer API and Horizon, skipping any account already funded on-chain. Safe to re-run.
+
+#### Gap detection
+
 Gap-detection guards against accidentally provisioning a sparse pool:
 
 ```bash
