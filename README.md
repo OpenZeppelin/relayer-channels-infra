@@ -666,17 +666,30 @@ flowchart TD
 
 ### Step 5.8: Bootstrap the channel-account pool
 
-The module deploys the *infrastructure* but does not provision the *channel accounts* (Stellar entities). For this you use the `oz-channels` CLI from OpenZeppelin/ops-toolkit. Install and configure a profile:
+The module deploys the *infrastructure* but does not provision the *channel accounts* (Stellar entities). For this you use the `oz-channels` CLI included in the `cli/` directory of this repo.
+
+Install the CLI:
 
 ```bash
-# Install
-git clone https://github.com/OpenZeppelin/ops-toolkit.git
-cd ops-toolkit
+# From the root of this repo
+cd cli
 bun install
+bun run build
+
+# Link the CLIs globally
 cd packages/oz-channels && bun link
 cd ../oz-relayer && bun link
 
-# Create a profile for your environment
+# Verify
+oz-channels --help
+oz-relayer --help
+```
+
+> Requires [Bun](https://bun.sh) runtime (Node.js 22+ compatible).
+
+Set up a profile for your environment:
+
+```bash
 oz-channels profile init prod-mainnet
 # Prompts for: URL (your channels.your-company.com), API key, plugin ID (channels),
 #              admin secret, network (mainnet), test account
@@ -953,7 +966,7 @@ For per-fund-relayer overrides (when `ALLOWED_FUND_RELAYER_IDS` is in use), the 
 
 ## 7. Operational playbook
 
-This section describes routine day-2 operations. The ops-toolkit CLIs (`oz-relayer`, `oz-channels`) are the operator-facing interface for most of these.
+This section describes routine day-2 operations. The `oz-relayer` and `oz-channels` CLIs (in the `cli/` directory of this repo) are the operator-facing interface for most of these.
 
 ### 7.1: Deploys
 
