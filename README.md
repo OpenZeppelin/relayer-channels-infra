@@ -1,11 +1,6 @@
 # Hosted Stellar Relayer on AWS: Operator Deployment Guide
 
-> A step-by-step guide for infrastructure teams (e.g., Blockdaemon, SDF) deploying a hosted Stellar relayer service that mirrors OpenZeppelin’s existing production setup.
-> 
-> 
-> **Audience:** infrastructure operators who have run production AWS workloads but are new to OpenZeppelin’s relayer stack.
-> **Outcome:** a hosted Stellar Channels service in your own AWS account capable of serving the same workload profile OpenZeppelin currently runs (~2M+ transactions/day across ~2500 relayers).
-> 
+> A step-by-step guide for infrastructure teams (e.g., Blockdaemon, SDF) deploying a hosted Stellar relayer service that mirrors OpenZeppelin’s existing production setup. 
 
 ---
 
@@ -25,14 +20,14 @@ After following this guide, you will have:
 - Eight SQS queues + DLQs handling the distributed transaction-processing pipeline.
 - Optional Cloudflare Worker fronting the ALB for self-serve API-key issuance (the `/gen` flow), per-user rate limiting, and usage analytics.
 - AWS SSM Parameter Store SecureString entries for every secret. No secrets in environment variables, no secrets in container images.
-- **Observability** — CloudWatch Logs + CloudWatch Metrics by default. Optionally, an Amazon Managed Prometheus workspace that remote-writes the same metric set if you operate your own Grafana / alerting stack.
-- **Alerting** — CloudWatch Alarms wired to SNS topics that fan out to PagerDuty (or your on-call channel of choice). The module provisions the alarm resources but leaves `alarm_actions` empty by default so you bind the SNS topic ARNs that route to your existing incident pipeline.
+- Observability: CloudWatch Logs + CloudWatch Metrics by default. Optionally, an Amazon Managed Prometheus workspace that remote-writes the same metric set if you operate your own Grafana / alerting stack.
+- Alerting: CloudWatch Alarms wired to SNS topics that fan out to PagerDuty (or your on-call channel of choice). The module provisions the alarm resources but leaves `alarm_actions` empty by default so you bind the SNS topic ARNs that route to your existing incident pipeline.
 - Optional Lambda functions for fund-relayer balance monitoring and ECS auto-restart on alarm.
 
 The system handles two transaction-submission modes:
 
-- **Signed XDR mode** — the caller signs a complete Stellar transaction envelope and submits it; the service only handles fee-bumping and submission.
-- **Soroban `func` + `auth` mode** — the caller submits a Soroban host function and authorization entries; the service assembles, simulates, signs with a channel account, fee-bumps, and submits.
+- **Signed XDR mode**: the caller signs a complete Stellar transaction envelope and submits it; the service only handles fee-bumping and submission.
+- **Soroban `func` + `auth` mode**: the caller submits a Soroban host function and authorization entries; the service assembles, simulates, signs with a channel account, fee-bumps, and submits.
 
 ### What this guide assumes you already have
 
@@ -41,8 +36,6 @@ The system handles two transaction-submission modes:
 - A target AWS account where you can create the full resource set, or an account-pair pattern with Route53 in a separate account (cross-account assume-role is supported).
 - A domain in Route53 you control.
 - (Optional) A Cloudflare account if you want the `/gen` API-key gateway.
-
-If you are looking for your own development or any other use cases which serves lower throughput than this, see the upstream Stellar Operator Guide — different audience, different deployment shape.
 
 ---
 
@@ -141,7 +134,7 @@ flowchart TD
 
 **Source references:**
 - Relayer API: openzeppelin-relayer
-- Channels Plugin: relayer-plugin-channels — see `src/plugin/` for the runtime, `src/client/` for the TypeScript SDK
+- Channels Plugin: relayer-plugin-channels; see `src/plugin/` for the runtime, `src/client/` for the TypeScript SDK
 - The Docker image deployed to Fargate is built from openzeppelin-relayer/examples/channels-plugin-example
 
 ### Transaction lifecycle
@@ -213,40 +206,40 @@ The 202 response is returned synchronously; the rest happens asynchronously via 
 
 ### Capacity profile
 
-The reference deployment OpenZeppelin runs handles a **growing ~3M transactions per day** sustained, served by **~1,000 relayers** (fund + channel-account entities combined). Two recent windows (per `channels-traffic-analysis-2026-05-12.html`):
+The reference deployment OpenZeppelin runs handles a growing ~3M transactions per day sustained, served by ~1,000 relayers (fund + channel-account entities combined). Two recent windows (per `channels-traffic-analysis-2026-05-12.html`):
 
 | Window | Total tx (7d) | Daily avg | Sustained tx/s | Peak day | Peak tx/s |
 | --- | --- | --- | --- | --- | --- |
 | Apr 28 – May 4 | 19.19M | 2.74M | ~31.7 | May 4 (3.90M) | ~45 |
-| **May 5 – May 11** | **20.88M (+8.8% WoW)** | **2.98M** | **~34.5** | **May 8 (3.67M)** | **~42.5** |
+| May 5 – May 11 | 20.88M (+8.8% WoW) | 2.98M | ~34.5 | May 8 (3.67M) | ~42.5 |
 
-The deployment is **trending up** WoW (+8.8% in the most recent window) and routinely absorbs daily peaks **~25–30% above the 7-day average**. Plan for headroom — autoscaling minimums should comfortably cover the **peak day**, not the average.
+The deployment is trending up WoW (+8.8% in the most recent window) and routinely absorbs daily peaks ~25–30% above the 7-day average. Plan for headroom because autoscaling minimums should comfortably cover the peak day, not the average.
 
-**Traffic concentration.** In both windows, **~99%+ of all transactions terminate at a small set of high-volume Soroban contracts** registered in `LIMITED_CONTRACTS`. The top contract alone accounts for **73–97% of daily volume** depending on its onchain phase, with the second contributing most of the remainder. Non-limited contracts are below sampling resolution (≤0.2%). This is what the contract-capacity-ratio knob is sized against. The full env-var tuning is in section 6.
+**Traffic concentration.** In both windows, ~99%+ of all transactions terminate at a small set of high-volume Soroban contracts registered in `LIMITED_CONTRACTS`. The top contract alone accounts for 73–97% of daily volume depending on its onchain phase, with the second contributing most of the remainder. Non-limited contracts are below sampling resolution (≤0.2%). This is what the contract-capacity-ratio knob is sized against. The full env-var tuning is in [section 6](#6-configuration-reference).
 
 **The Terraform module defaults are sized for `environment = "prod"` workloads but tuned conservatively.** For reference, here is the actual production configuration OpenZeppelin runs at this scale (sanitized):
 
 | Resource | Module default (per `relayer-channels-infra`) | OpenZeppelin production (actual resource capacity) |
 | --- | --- | --- |
-| ECS task CPU | 1024 (1 vCPU) | **8192 (8 vCPU)** |
-| ECS task memory | 2048 MiB | **16384 MiB** |
-| ECS desired count | 2 | **11** |
-| ECS autoscaling min | 2 | **11** |
-| ECS autoscaling max | 10 | **25** |
-| Container CPU (within task) | 1024 | **6144** (rest reserved for sidecars) |
-| Container memory (within task) | 2048 | **9216** |
+| ECS task CPU | 1024 (1 vCPU) | 8192 (8 vCPU) |
+| ECS task memory | 2048 MiB | 16384 MiB |
+| ECS desired count | 2 | 11 |
+| ECS autoscaling min | 2 | 11 |
+| ECS autoscaling max | 10 | 25 |
+| Container CPU (within task) | 1024 | 6144 (rest reserved for sidecars) |
+| Container memory (within task) | 2048 | 9216 |
 | Redis node type | `cache.t4g.medium` (non-prod) / `cache.r7g.large` (prod) | `cache.r7g.large` family (multi-AZ failover) |
-| Redis pool max size | 500 | **3000** |
-| Redis reader pool max size | 1000 | **3000** |
-| Max connections (relayer) | 256 | **4000** |
-| Rate limit (req/sec) | 100 | **400** |
-| Rate limit burst | 300 | **500** |
+| Redis pool max size | 500 | 3000 |
+| Redis reader pool max size | 1000 | 3000 |
+| Max connections (relayer) | 256 | 4000 |
+| Rate limit (req/sec) | 100 | 400 |
+| Rate limit burst | 300 | 500 |
 
-The module defaults are operationally fine for a *new* deployment ramping up; expect to grow into something closer to the production shape as your workload approaches the OpenZeppelin scale. The full env-var tuning is in section 6.
+The module defaults are operationally fine for a *new* deployment ramping up. That said, expect to grow into something closer to the production shape as your workload approaches the OpenZeppelin scale. The full env-var tuning is in [section 6](#6-configuration-reference).
 
 **Sidecar pattern:** OpenZeppelin runs a `cloudwatch-exporter` sidecar in every task that scrapes `:8081/debug/metrics/scrape` and pushes Prometheus metrics into CloudWatch under namespaces like `RelayerChannelsMainnetTransactions`. The module exposes this as an optional feature via `enable_cloudwatch_exporter` and `cloudwatch_exporter_image`.
 
-> **Source for the traffic figures above:** internal traffic analysis `channels-traffic-analysis-2026-05-12.html` (CloudWatch + per-contract instrumentation). Numbers reflect Apr 28 – May 11 on channels-fund mainnet. Refresh this section quarterly or whenever a new WoW snapshot is generated.
+> **Source for the traffic figures above:** internal traffic analysis `channels-traffic-analysis-2026-05-12.html` (CloudWatch + per-contract instrumentation). Numbers reflect Apr 28 to May 11 on channels-fund mainnet. Refresh this section quarterly or whenever a new WoW snapshot is generated.
 > 
 
 ### SQS queue topology
@@ -291,7 +284,7 @@ flowchart TD
 
 - `transaction-submission` has `max-recv = 2` because a failed RPC submission should not retry indefinitely (retrying a maybe-submitted tx risks double-spend semantics on the chain). Two attempts, then DLQ for human inspection.
 - `status-check-*` queues have `max-recv = 1000` because status polling is *expected* to retry many times before a transaction confirms. Long ledger settlement = many poll attempts. DLQ entry here means the tx never confirmed despite ~1000 polling rounds.
-- Other queues sit at `max-recv = 6` — a reasonable default for retriable transient failures.
+- Other queues sit at `max-recv = 6`: a reasonable default for retriable transient failures.
 
 ---
 
@@ -299,7 +292,7 @@ flowchart TD
 
 ### Accounts and access
 
-- **AWS account** with permissions to create: ECS clusters/services, ECR Public repositories, Application Load Balancers, ACM certificates, Route53 records, ElastiCache replication groups, SQS queues, IAM roles/policies, SSM Parameter Store, CloudWatch Logs + Metrics + Alarms, Lambda functions, EventBridge rules, Amazon Managed Prometheus workspaces. (Cross-account variants supported via assume-role; see section 5.)
+- **AWS account** with permissions to create: ECS clusters/services, ECR Public repositories, Application Load Balancers, ACM certificates, Route53 records, ElastiCache replication groups, SQS queues, IAM roles/policies, SSM Parameter Store, CloudWatch Logs + Metrics + Alarms, Lambda functions, EventBridge rules, Amazon Managed Prometheus workspaces. (Cross-account variants supported via assume-role; see [section 5](#5-step-by-step-deployment).)
 - **Route53 hosted zone** for the domain you want to serve from (e.g., `channels.your-company.com`). The zone can live in the same account or in a different one (cross-account assume-role).
 - **(Optional) Cloudflare account** with a zone matching your domain. Required if you want the `/gen` API-key flow, per-IP/per-key rate limiting at the edge, and Cloudflare Analytics-Engine-backed usage tracking.
 - **GitHub account** with access to the four reference repositories listed below. None of the repositories are required to be forked; you can consume Terraform modules directly via the `source` block.
@@ -317,16 +310,16 @@ flowchart TD
 
 ### Stellar-side prerequisites
 
-- **Soroban RPC access** — at least two independent providers for mainnet (e.g., Stellar Foundation + a commercial provider). The module does not provision RPC; you configure RPC URLs at the relayer configuration layer.
-- **KMS keys for signers** — for production, you will create one AWS KMS key per fund relayer (ED25519 key spec, asymmetric sign). The **fund relayer** is the Stellar account that signs and pays for the **fee-bump envelope** wrapping every channel-account submission: channel signers sign the inner transaction with their own keys, and the fund relayer's fee-bump signature is what commits XLM to confirm the bundle onchain. So every successful submission consumes (a) one channel-signer signature and (b) one fund-relayer signature plus its inclusion fee. Channel-account signers may use the encrypted local keystore pattern (development-only); for production, both should be KMS-backed. See Section 9 for the full security framing.
-- **Initial XLM funding** — bootstrapping happens in two explicit steps:
-    1. **Fund the fund relayer's Stellar account.** On **mainnet**, this is a manual one-time top-up sent from your treasury or an exchange to the fund relayer's address. On **testnet**, fund it via Friendbot.
-    2. **Bootstrap channel accounts from that balance.** `oz-channels bootstrap --to N` creates `N` channel accounts and sends `-starting-balance` XLM (default **2 XLM**) to each, drawing from the fund relayer.
+- **Soroban RPC access**: at least two independent providers for mainnet (e.g., Stellar Foundation + a commercial provider). The module does not provision RPC; you configure RPC URLs at the relayer configuration layer.
+- **KMS keys for signers**: for production, you will create one AWS KMS key per fund relayer (ED25519 key spec, asymmetric sign). The fund relayer is the Stellar account that signs and pays for the fee-bump envelope wrapping every channel-account submission: channel signers sign the inner transaction with their own keys, and the fund relayer's fee-bump signature is what commits XLM to confirm the bundle onchain. So every successful submission consumes (a) one channel-signer signature and (b) one fund-relayer signature plus its inclusion fee. Channel-account signers may use the encrypted local keystore pattern (development-only); for production, both should be KMS-backed. See [Section 9](#9-security-model) for the full security framing.
+- **Initial XLM funding**: bootstrapping happens in two explicit steps:
+    1. **Fund the fund relayer's Stellar account.** On mainnet, this is a manual one-time top-up sent from your treasury or an exchange to the fund relayer's address. On testnet, fund it via Friendbot.
+    2. **Bootstrap channel accounts from that balance.** `oz-channels bootstrap --to N` creates `N` channel accounts and sends `--starting-balance` XLM (default 2 XLM) to each, drawing from the fund relayer.
     
     **Sizing the fund-relayer balance:**
     
-    - **Provisioning (one-time):** `2 XLM × N` channel accounts. A 1,000-channel pool requires **at minimum 2,000 XLM** in the fund relayer before `bootstrap` can run.
-    - **Operating buffer (ongoing):** covers fee bumps for live traffic. At ~34 tx/s sustained (per section 2) and a 100-stroop base fee, a multi-day buffer typically runs 10s–100s of XLM depending on congestion-driven fee multipliers. Top up via the balance-monitoring Lambda described in section 7.
+    - **Provisioning (one-time):** `2 XLM × N` channel accounts. A 1,000-channel pool requires at minimum 2,000 XLM in the fund relayer before `bootstrap` can run.
+    - **Operating buffer (ongoing):** covers fee bumps for live traffic. At ~34 tx/s sustained (per section 2) and a 100-stroop base fee, a multi-day buffer typically runs 10s–100s of XLM depending on congestion-driven fee multipliers. Top up via the balance-monitoring Lambda described in [section 7](#7-operational-playbook).
 
 ### Reference repositories
 
@@ -335,7 +328,7 @@ You will refer to four repositories during deployment:
 | Repo | Role | Visibility |
 | --- | --- | --- |
 | `OpenZeppelin/relayer-channels-infra` | Primary Terraform modules | Public |
-| `OpenZeppelin/openzeppelin-relayer` — `examples/channels-plugin-example` | The example used to build the Docker image | Public |
+| `OpenZeppelin/openzeppelin-relayer`: `examples/channels-plugin-example` | The example used to build the Docker image | Public |
 | `OpenZeppelin/relayer-plugin-channels` | The Channels plugin runtime (TypeScript) | Public |
 
 ---
@@ -384,13 +377,13 @@ stellar_network: testnet
 relayer_id: channels-fund
 ```
 
-This same shape is consumed by the operator CLIs (`oz-relayer`, `oz-channels`) described in section 7 — they read profile config from `~/.config/oz-relayer/config.yaml` and `~/.config/oz-channels/config.yaml`.
+This same shape is consumed by the operator CLIs (`oz-relayer`, `oz-channels`) described in [section 7](#7-operational-playbook); they read profile config from `~/.config/oz-relayer/config.yaml` and `~/.config/oz-channels/config.yaml`.
 
 ---
 
 ## 5. Step-by-step deployment
 
-This section walks the happy-path deployment using the Terraform module in standalone mode. After the first deploy, day-2 operations are described in section 7.
+This section walks the happy-path deployment using the Terraform module in standalone mode. After the first deploy, routine operations are described in [section 7](#7-operational-playbook).
 
 ### Step 5.1: Clone the remote repo
 
@@ -492,11 +485,13 @@ export TF_VAR_webhook_signing_key="$(openssl rand -hex 32)"        # if using we
 export TF_VAR_storage_encryption_key="$(openssl rand -hex 32)"     # for at-rest encryption in Redis
 ```
 
+These are session-scoped; for CI pipelines, set them as masked environment variables in your CI provider instead of exporting them in the shell.
+
 ### Step 5.4: Decide on the container image strategy
 
 Two options:
 
-**Option A — Consume OpenZeppelin’s published image (recommended).** OpenZeppelin publishes pre-built images to ECR Public at `public.ecr.aws/<oz-alias>/openzeppelin-relayer-channels:<tag>` (look up the live alias from the ECR Public Gallery). The image bundles `openzeppelin-relayer` compiled from a pinned `main` revision with the `@openzeppelin/relayer-plugin-channels` package, runs as `nonroot` (UID 65532) on a Wolfi base, and ships with public Stellar RPC endpoints baked in (no secrets, no paid-RPC URLs). It is the same image OpenZeppelin runs in production.
+**Option A: Consume OpenZeppelin’s published image (recommended).** OpenZeppelin publishes pre-built images to ECR Public at `public.ecr.aws/<oz-alias>/openzeppelin-relayer-channels:<tag>` (look up the live alias from the ECR Public Gallery). The image bundles `openzeppelin-relayer` compiled from a pinned `main` revision with the `@openzeppelin/relayer-plugin-channels` package, runs as `nonroot` (UID 65532) on a Wolfi base, and ships with public Stellar RPC endpoints baked in (no secrets, no paid-RPC URLs). It is the same image OpenZeppelin runs in production.
 
 Tag scheme:
 
@@ -518,9 +513,9 @@ docker buildx imagetools inspect \
   --format '{{ json .Provenance }}'
 ```
 
-The published image is built and pushed by OpenZeppelin's internal CI pipeline (one workflow per network — mainnet and testnet). The pipeline refuses to publish if any private-RPC pattern is detected in the baked `stellar.json`, which is the guardrail that makes the public image safe for downstream operators to consume. You don't need access to that pipeline to deploy — the published image at `public.ecr.aws/<oz-alias>/openzeppelin-relayer-channels:<tag>` is the contract.
+The published image is built and pushed by OpenZeppelin's internal CI pipeline (one workflow per network; mainnet and testnet). The pipeline refuses to publish if any private-RPC pattern is detected in the baked `stellar.json`, which is the guardrail that makes the public image safe for downstream operators to consume. You don't need access to that pipeline to deploy; the published image at `public.ecr.aws/<oz-alias>/openzeppelin-relayer-channels:<tag>` is the contract.
 
-**Option B — Build your own image** from the example and publish to your own ECR. Leave `container_image = ""` in tfvars; the module will create an ECR Public repository for you. Build steps mirror what the OpenZeppelin workflows do:
+**Option B: Build your own image** from the example and publish to your own ECR. Leave `container_image = ""` in tfvars; the module will create an ECR Public repository for you. Build steps mirror what the OpenZeppelin workflows do:
 
 ```bash
 git clone https://github.com/OpenZeppelin/openzeppelin-relayer.git
@@ -531,7 +526,7 @@ cd openzeppelin-relayer/examples/channels-plugin-example
 docker build -t my-relayer-channels:latest -f ../../Dockerfile.production .
 ```
 
-You can run this build locally as shown, or wire it into the CI tool of your choice (GitHub Actions, GitLab CI, CircleCI, Buildkite, etc.). The build itself is a standard `docker build` — no OpenZeppelin-specific tooling is required to reproduce it.
+You can run this build locally as shown, or wire it into the CI tool of your choice (GitHub Actions, GitLab CI, CircleCI, Buildkite, etc.). The build itself is a standard `docker build`: no OpenZeppelin-specific tooling is required to reproduce it.
 
 **What the public image baked-in config does NOT include** (you provide at runtime via mounted `config.json` and env vars):
 
@@ -541,7 +536,7 @@ You can run this build locally as shown, or wire it into the CI tool of your cho
 - SQS queues (if running in distributed mode)
 - IAM roles for KMS / SQS / Secrets Manager / CloudWatch
 
-To override the baked public-RPC endpoints with paid/private RPCs, mount your own `stellar.json` at `/app/config/networks/stellar.json`. The file format mirrors the default: one entry per Stellar network (`mainnet`, `testnet`), each with a `rpc_urls[]` array of `{ url, weight }` objects. The relayer load-balances across the listed URLs by weight and rotates on failures (see the `RPC_*` and `PROVIDER_*` env vars in section 6 for failover tuning).
+To override the baked public-RPC endpoints with paid/private RPCs, mount your own `stellar.json` at `/app/config/networks/stellar.json`. The file format mirrors the default: one entry per Stellar network (`mainnet`, `testnet`), each with a `rpc_urls[]` array of `{ url, weight }` objects. The relayer load-balances across the listed URLs by weight and rotates on failures (see the `RPC_*` and `PROVIDER_*` env vars in [section 6](#6-configuration-reference) for failover tuning).
 
 After the first `terraform apply` (next step), push to the module-created ECR:
 
@@ -590,7 +585,7 @@ curl -sS https://channels.your-company.com/api/v1/ready
 # Expect: 200 with JSON { "ready": true, "status": "healthy", ... }
 ```
 
-If either fails, the same checks are available via CLI or the AWS Console — use whichever your team finds quicker:
+If either fails, the same checks are available via CLI or the AWS Console; use whichever your team finds quicker:
 
 - **ECS service events:**
     - CLI: `aws ecs describe-services --cluster <ecs_cluster_name> --services <ecs_service_name>`
@@ -622,7 +617,7 @@ The Worker exposes:
 | `/testnet` (POST) | POST | Proxies to relayer’s `/testnet/api/v1/plugins/channels/call` |
 | `/usage/me` | GET | Queries Cloudflare Analytics Engine for the caller’s usage |
 
-The Worker injects authentication headers upstream: the upstream `Bearer` token becomes the static API key (`RELAYER_STATIC_API_KEY`), while the user’s original key becomes `x-consumer-key`. This is why the ECS module sets `API_KEY_HEADER=x-consumer-key` — the relayer is told to use that header for per-user fee tracking inside the Channels plugin.
+The Worker injects authentication headers upstream: the upstream `Bearer` token becomes the static API key (`RELAYER_STATIC_API_KEY`), while the user’s original key becomes `x-consumer-key`. This is why the ECS module sets `API_KEY_HEADER=x-consumer-key`: the relayer is told to use that header for per-user fee tracking inside the Channels plugin.
 
 Rate limits (defaults; tunable via tfvars):
 
@@ -631,9 +626,9 @@ Rate limits (defaults; tunable via tfvars):
 | `gen_ip_rate_hour` | 2 | Max `/gen` requests per IP per hour (anti-abuse) |
 | `relay_rpm_per_key` | 60 | Max relay POSTs per minute per user key |
 
-The Worker source (`worker.mjs`) is identical between the public module and the internal OpenZeppelin deployment — same KV-backed auth, same header rewrites, same usage tracking via Cloudflare Analytics Engine. The module-defaults for the rate limits (`gen_ip_rate_hour=2`, `relay_rpm_per_key=60`) are reasonable conservative starting points; tune to your traffic profile.
+The Worker source (`worker.mjs`) is identical between the public module and the internal OpenZeppelin deployment; same KV-backed auth, same header rewrites, same usage tracking via Cloudflare Analytics Engine. The module-defaults for the rate limits (`gen_ip_rate_hour=2`, `relay_rpm_per_key=60`) are reasonable conservative starting points; tune to your traffic profile.
 
-**Worker auth-rewrite — what actually happens to headers:**
+**Worker auth-rewrite: what actually happens to headers:**
 
 This is the non-obvious part of the Worker. Per-caller API keys go in, a single static API key goes out, and the original caller identity is carried in a different header for downstream fee tracking.
 
@@ -662,7 +657,7 @@ flowchart TD
     Track --> Upstream
 ```
 
-**Operational consequence:** the upstream relayer never sees user-supplied keys directly. A compromised user key only compromises that user’s quota — it cannot escalate to relayer-level admin operations because those require the static key (which only the Worker holds).
+**Operational consequence:** the upstream relayer never sees user-supplied keys directly. A compromised user key only compromises that user’s quota; it cannot escalate to relayer-level admin operations because those require the static key (which only the Worker holds).
 
 ### Step 5.8: Bootstrap the channel-account pool
 
@@ -707,9 +702,9 @@ oz-channels bootstrap --to 200 -p prod-mainnet
 
 The bootstrap workflow runs three phases:
 
-1. **Preflight audit** (parallel, configurable concurrency) — checks each slot’s signer existence, relayer existence, and onchain funding.
-2. **Provisioning** (sequential) — creates signers and relayers via the relayer’s management API; tolerates 409s if records already exist.
-3. **Funding** (sequential) — submits funding transactions through the fund relayer using a competitive fee from Horizon `/fee_stats`; tolerates `op_already_exists`.
+1. **Preflight audit** (parallel, configurable concurrency): checks each slot’s signer existence, relayer existence, and onchain funding.
+2. **Provisioning** (sequential): creates signers and relayers via the relayer’s management API; tolerates 409s if records already exist.
+3. **Funding** (sequential): submits funding transactions through the fund relayer using a competitive fee from Horizon `/fee_stats`; tolerates `op_already_exists`.
 
 After all three phases complete, the bootstrap merges the new accounts into the Channels plugin’s pool via `setChannelAccounts`.
 
@@ -746,7 +741,7 @@ flowchart TD
 
 When scaling the pool aggressively (e.g. 100 → 1000 channels), `oz-channels bootstrap` will start failing with `TRY_AGAIN_LATER` or `tx_bad_seq` errors from Horizon. This happens because every `createAccount` operation uses the fund relayer (`channels-fund`) as the transaction source, serializing all submissions on a single sequence number. Under high concurrency, Horizon rejects the overlapping submissions.
 
-Use `scripts/fund-new-channels.ts` instead — it routes the transaction source through an existing funded channel account (e.g. `channel-0001`) while keeping the fund relayer as the operation source (so the treasury still pays). It also batches up to 100 `createAccount` ops per transaction, so a 100→1000 scale-up fits in ~9 submissions.
+Use `scripts/fund-new-channels.ts` instead; it routes the transaction source through an existing funded channel account (e.g. `channel-0001`) while keeping the fund relayer as the operation source (so the treasury still pays). It also batches up to 100 `createAccount` ops per transaction, so a 100→1000 scale-up fits in ~9 submissions.
 
 ```bash
 npx tsx scripts/fund-new-channels.ts \
@@ -759,7 +754,7 @@ npx tsx scripts/fund-new-channels.ts \
   --report fund-report.json
 ```
 
-The script is idempotent — it preflights every slot via the relayer API and Horizon, skipping any account already funded on-chain. Safe to re-run.
+The script is idempotent; it preflights every slot via the relayer API and Horizon, skipping any account already funded onchain. Safe to re-run.
 
 #### Gap detection
 
@@ -798,15 +793,15 @@ These are set inside the ECS task definition by the Terraform module and should 
 | `HOST` | `0.0.0.0` | Module |
 | `STELLAR_NETWORK` | `var.stellar_network` (`mainnet` or `testnet`) | Module |
 | `FUND_RELAYER_ID` | `var.fund_relayer_id` (default `channels-fund`) | Module |
-| `API_KEY_HEADER` | `x-consumer-key` | Module — keyed to Cloudflare Worker rewriting |
-| `REPOSITORY_STORAGE_TYPE` | `redis` | Module — required for production |
+| `API_KEY_HEADER` | `x-consumer-key` | Module: keyed to Cloudflare Worker rewriting |
+| `REPOSITORY_STORAGE_TYPE` | `redis` | Module: required for production |
 | `RESET_STORAGE_ON_START` | `false` | Module |
 | `METRICS_ENABLED` | `true` | Module |
 | `METRICS_PORT` | `8081` | Module |
 | `LOG_FORMAT` | `json` | Module |
 | `LOG_LEVEL` | `var.log_level` (default `warn`) | Module |
-| `REDIS_URL` | `redis://<primary-endpoint>:6379` | Module — derived from ElastiCache output |
-| `REDIS_READER_URL` | `redis://<reader-endpoint>:6379` | Module — read/write split for ElastiCache |
+| `REDIS_URL` | `redis://<primary-endpoint>:6379` | Module: derived from ElastiCache output |
+| `REDIS_READER_URL` | `redis://<reader-endpoint>:6379` | Module: read/write split for ElastiCache |
 | `AWS_REGION` | Module-derived | Module |
 | `AWS_ACCOUNT_ID` | Module-derived | Module |
 | `DISTRIBUTED_MODE` | `var.distributed_mode` (default `true`) | Module |
@@ -883,7 +878,7 @@ container_environment = [
 
 ### User-overridable env vars
 
-Anything in `var.container_environment` is merged with the managed list; **user-provided values take precedence**. Common overrides:
+Anything in `var.container_environment` is merged with the managed list; user-provided values take precedence. Common overrides:
 
 ```hcl
 container_environment = [
@@ -907,10 +902,10 @@ container_environment = [
 ]
 ```
 
-> **What are`LIMITED_CONTRACTS`  -** A small number of Soroban contracts often dominate the channel-account pool's submission queue. In the OpenZeppelin reference deployment, **two limited contracts together account for ~99%+ of all transactions**, and the top single contract takes **73–97% of daily volume** depending on its onchain phase (e.g., long-running mining/harvest cycles). Left unmanaged, contracts at this concentration would starve every other contract of channel-account capacity. `LIMITED_CONTRACTS` lists the contract IDs to cap, and `CONTRACT_CAPACITY_RATIO` (between 0 and 1) sets the maximum fraction of the pool those listed contracts may collectively occupy at any one moment. **OpenZeppelin runs `CONTRACT_CAPACITY_RATIO=0.6`** in production — high-traffic contracts can take up to 60% of the pool, leaving 40% reserved for everyone else (which keeps long-tail traffic responsive even under sustained mining-protocol load).
+> **What are `LIMITED_CONTRACTS`?** A small number of Soroban contracts often dominate the channel-account pool's submission queue. In the OpenZeppelin reference deployment, two limited contracts together account for ~99%+ of all transactions, and the top single contract takes 73–97% of daily volume depending on its onchain phase (e.g., long-running mining/harvest cycles). Left unmanaged, contracts at this concentration would starve every other contract of channel-account capacity. `LIMITED_CONTRACTS` lists the contract IDs to cap, and `CONTRACT_CAPACITY_RATIO` (between 0 and 1) sets the maximum fraction of the pool those listed contracts may collectively occupy at any one moment. OpenZeppelin runs `CONTRACT_CAPACITY_RATIO=0.6` in production; high-traffic contracts can take up to 60% of the pool, leaving 40% reserved for everyone else (which keeps long-tail traffic responsive even under sustained mining-protocol load).
 > 
 > 
-> **How to populate the list.** Identify offenders empirically: watch per-contract channel-account-checkout metrics over hours or days (the `cloudwatch-exporter` sidecar exposes per-contract counters), and add any contract whose share of in-flight submissions consistently exceeds the rest of the population by an order of magnitude. The contracts in OpenZeppelin's list are publicly identifiable, high-throughput Soroban protocols whose normal operation generates millions of submissions per day; your offenders will be specific to your customer mix. The placeholder values shown in the snippet above (`CABC...`, `CDEF...`) are illustrative — substitute your own.
+> **How to populate the list.** Identify offenders empirically: watch per-contract channel-account-checkout metrics over hours or days (the `cloudwatch-exporter` sidecar exposes per-contract counters), and add any contract whose share of in-flight submissions consistently exceeds the rest of the population by an order of magnitude. The contracts in OpenZeppelin's list are publicly identifiable, high-throughput Soroban protocols whose normal operation generates millions of submissions per day; your offenders will be specific to your customer mix. The placeholder values shown in the snippet above (`CABC...`, `CDEF...`) are illustrative; substitute your own.
 > 
 
 ### Module-managed secrets (from SSM Parameter Store)
@@ -924,31 +919,31 @@ The module creates SSM `SecureString` parameters and wires them into the ECS tas
 | `WEBHOOK_SIGNING_KEY` | `<prefix>/webhook-signing-key` | Conditional (set when `var.webhook_signing_key` non-empty) |
 | `STORAGE_ENCRYPTION_KEY` | `<prefix>/storage-encryption-key` | Conditional (set when `var.storage_encryption_key` non-empty) |
 
-The Terraform `lifecycle { ignore_changes = [value] }` on these parameters means: once created, Terraform will not overwrite the SSM value if you rotate it out-of-band via AWS CLI / Console. This is intentional — it lets you rotate secrets without doing a Terraform apply.
+The Terraform `lifecycle { ignore_changes = [value] }` on these parameters means: once created, Terraform will not overwrite the SSM value if you rotate it out-of-band via AWS CLI / Console. This is intentional; it lets you rotate secrets without doing a Terraform apply.
 
 ### Plugin configuration (Channels plugin runtime)
 
 Beyond the env vars above, the Channels plugin reads configuration baked into the Docker image via `config/config.json`. The `examples/channels-plugin-example` directory in `openzeppelin-relayer` is the reference. Key sections:
 
-- `relayers[]` — one entry per relayer ID, including the fund relayer (`channels-fund`) with `concurrent_transactions: true`, and one entry per channel account. The bootstrap workflow creates these via the management API, so the JSON file typically contains only the fund relayer; channels are added dynamically.
-- `signers[]` — one signer per relayer. For production, every signer should be `aws_kms` (or `google_cloud_kms` if you’re on GCP) with an ED25519 key spec.
-- `networks[]` — Stellar network definitions including `rpc_urls`. For production, list two independent providers.
-- `notifications[]` — webhook endpoints (signed with `WEBHOOK_SIGNING_KEY`).
-- `plugins[]` — the Channels plugin registration; ID is `channels` (matches the API path `/api/v1/plugins/channels/call`).
+- `relayers[]`: one entry per relayer ID, including the fund relayer (`channels-fund`) with `concurrent_transactions: true`, and one entry per channel account. The bootstrap workflow creates these via the management API, so the JSON file typically contains only the fund relayer; channels are added dynamically.
+- `signers[]`: one signer per relayer. For production, every signer should be `aws_kms` (or `google_cloud_kms` if you’re on GCP) with an ED25519 key spec.
+- `networks[]`: Stellar network definitions including `rpc_urls`. For production, list two independent providers.
+- `notifications[]`: webhook endpoints (signed with `WEBHOOK_SIGNING_KEY`).
+- `plugins[]`: the Channels plugin registration; ID is `channels` (matches the API path `/api/v1/plugins/channels/call`).
 
-The published image at `public.ecr.aws/<oz-alias>/openzeppelin-relayer-channels` ships with an **empty `config.json` stub** — empty `relayers[]`, `signers[]`, `notifications[]`. Operators must provide their own at runtime by mounting `/app/config/config.json`. Two patterns:
+The published image at `public.ecr.aws/<oz-alias>/openzeppelin-relayer-channels` ships with an **empty `config.json` stub**: empty `relayers[]`, `signers[]`, `notifications[]`. Operators must provide their own at runtime by mounting `/app/config/config.json`. Two patterns:
 
-- **Mount a file** — simplest; commit your `config.json` to a private artifact store and mount via ECS task volume.
-- **Render at startup from secrets** — more secure; use an entrypoint wrapper that fetches signer keys from AWS Secrets Manager or Vault and writes `/app/config/config.json` before the relayer starts.
+- **Mount a file**: simplest; commit your `config.json` to a private artifact store and mount via ECS task volume.
+- **Render at startup from secrets**: more secure; use an entrypoint wrapper that fetches signer keys from AWS Secrets Manager or Vault and writes `/app/config/config.json` before the relayer starts.
 
 > **Minimal `config.json` shape:** four top-level arrays.
 >
-> - `signers[]` — start with one entry: your fund-relayer's `aws_kms` signer (key ARN, region, key-spec `ECC_NIST_EDWARDS25519`).
-> - `relayers[]` — one entry for the fund relayer (`id: "channels-fund"`, points at the signer above, `concurrent_transactions: true`).
-> - `networks[]` — one Stellar network entry with `rpc_urls[]` weights.
-> - `plugins[]` — one entry registering the Channels plugin (`id: "channels"`, which is what makes the API path `/api/v1/plugins/channels/call` resolve).
+> - `signers[]`: start with one entry: your fund-relayer's `aws_kms` signer (key ARN, region, key-spec `ECC_NIST_EDWARDS25519`).
+> - `relayers[]`: one entry for the fund relayer (`id: "channels-fund"`, points at the signer above, `concurrent_transactions: true`).
+> - `networks[]`: one Stellar network entry with `rpc_urls[]` weights.
+> - `plugins[]`: one entry registering the Channels plugin (`id: "channels"`, which is what makes the API path `/api/v1/plugins/channels/call` resolve).
 >
-> Channel-account signers and relayers are added at runtime by `oz-channels bootstrap` (section 5.8) — they don't need to live in `config.json` at image-build time.
+> Channel-account signers and relayers are added at runtime by `oz-channels bootstrap` ([section 5.8](#step-58-bootstrap-the-channel-account-pool)); they don't need to live in `config.json` at image-build time.
 
 ### Channel-account funding policy
 
@@ -966,7 +961,7 @@ For per-fund-relayer overrides (when `ALLOWED_FUND_RELAYER_IDS` is in use), the 
 
 ## 7. Operational playbook
 
-This section describes routine day-2 operations. The `oz-relayer` and `oz-channels` CLIs (in the `cli/` directory of this repo) are the operator-facing interface for most of these.
+This section describes routine operations. The `oz-relayer` and `oz-channels` CLIs (in the `cli/` directory of this repo) are the operator-facing interface for most of these.
 
 ### 7.1: Deploys
 
@@ -976,16 +971,16 @@ The deploy unit is the container image. The Terraform module is “infra-mostly-
 
 1. Push the new image to ECR with a versioned tag (e.g., `mainnet-1.3.40`).
 2. Update `container_image` in tfvars to point at the new tag.
-3. `terraform apply` — this triggers an ECS service update with `deployment_minimum_healthy_percent = 100` and `deployment_maximum_percent = 200`, so the service stays available throughout (new tasks come up, then old ones go down).
+3. `terraform apply`: this triggers an ECS service update with `deployment_minimum_healthy_percent = 100` and `deployment_maximum_percent = 200`, so the service stays available throughout (new tasks come up, then old ones go down).
 
 **ALB health-check semantics during deploy:** the ALB target group uses `path = /api/v1/health` with 5-second deregistration delay, 60-second interval, 30-second timeout. Tasks are added to the target group only after passing health checks; old tasks are drained gracefully.
 
-**Canary deployments (the pattern OpenZeppelin runs in production):** the `relayer-channels-infra` public module ships a single ECS service. OpenZeppelin’s internal production stack runs **two ECS services behind one ALB**: a stable service (`<app>-service-mainnet`) and a canary service (`<app>-service-canary`), both pointing at the same ECS cluster, ElastiCache Redis, and SQS queue prefix. The ALB’s HTTPS listener uses `weighted_forward` across two target groups, currently configured `{stable: 100, canary: 0}` with stickiness enabled (600s duration) so a given caller stays on one variant across requests.
+**Canary deployments (the pattern OpenZeppelin runs in production):** the `relayer-channels-infra` public module ships a single ECS service. OpenZeppelin’s internal production stack runs two ECS services behind one ALB: a stable service (`<app>-service-mainnet`) and a canary service (`<app>-service-canary`), both pointing at the same ECS cluster, ElastiCache Redis, and SQS queue prefix. The ALB’s HTTPS listener uses `weighted_forward` across two target groups, currently configured `{stable: 100, canary: 0}` with stickiness enabled (600s duration) so a given caller stays on one variant across requests.
 
 To roll out a new image with canary:
 
 1. Push the new image to ECR with a versioned tag (e.g., `mainnet-1.4.3`).
-2. Update the canary service’s `container_image` to the new tag and bump its `desired_count` (from the “parked” 0 to a small number — e.g., 2 tasks for a ~10% slice).
+2. Update the canary service’s `container_image` to the new tag and bump its `desired_count` (from the “parked” 0 to a small number; e.g., 2 tasks for a ~10% slice).
 3. Shift ALB weights from `{stable: 100, canary: 0}` to `{stable: 90, canary: 10}` (or whatever ramp you want).
 4. `terraform apply`.
 5. Monitor canary-specific metrics for the agreed bake time (the CloudWatch namespace per task is distinct: `RelayerChannelsMainnetCanaryTransactions` vs `RelayerChannelsMainnetTransactions` for stable).
@@ -993,7 +988,7 @@ To roll out a new image with canary:
 
 The canary service inherits all the same env vars but with concurrency slightly lower (~150 vs 200 across the worker pools) to limit blast radius if the new image misbehaves.
 
-> Extending the public `relayer-channels-infra` module to add a canary service is straightforward — copy the existing `ecs_service` block, name it `-canary`, and update the ALB listener's `forward` action to `weighted_forward` with two target groups. The public module doesn't include this today, but the pattern is mechanical to add — section 10.10 below sketches the key resources and pitfalls.
+> Extending the public `relayer-channels-infra` module to add a canary service is straightforward; copy the existing `ecs_service` block, name it `-canary`, and update the ALB listener's `forward` action to `weighted_forward` with two target groups. The public module doesn't include this today, but the pattern is mechanical to add; [section 10.10](#1010-canary-deployment-at-the-ecs-layer) sketches the key resources and pitfalls.
 
 ### 7.2: Rollbacks
 
@@ -1040,7 +1035,7 @@ oz-channels channels add channel-0050 -p prod-mainnet
 oz-channels channels remove channel-0050 -p prod-mainnet
 ```
 
-`oz-channels channels set` replaces the entire registered list — destructive; use `add`/`remove` for incremental changes.
+`oz-channels channels set` replaces the entire registered list; destructive; use `add`/`remove` for incremental changes.
 
 ### 7.5: Per-API-key fee budget management
 
@@ -1065,7 +1060,7 @@ The Terraform module creates three CloudWatch alarms per queue:
 | `<prefix>-<queue>-dlq-messages` | 100 messages in DLQ | 1 × 5-min period |
 | `<prefix>-<queue>-old-messages` | `visibility_timeout × 3` (oldest message age) | 1 × 5-min period |
 
-By default, `alarm_actions = []` — you must wire these alarms to an SNS topic or PagerDuty integration as a post-deploy operator step. The alarm names follow the `<prefix>-<queue>` pattern so a single SNS subscription on those alarm names captures all queue health alerts.
+By default, `alarm_actions = []`: you must wire these alarms to an SNS topic or PagerDuty integration as a post-deploy operator step. The alarm names follow the `<prefix>-<queue>` pattern so a single SNS subscription on those alarm names captures all queue health alerts.
 
 ### 7.7: Monitoring Redis
 
@@ -1074,7 +1069,7 @@ ElastiCache emits standard CloudWatch metrics. Key signals:
 | Metric | Watch for |
 | --- | --- |
 | `EngineCPUUtilization` | Spikes above 75% sustained |
-| `DatabaseMemoryUsagePercentage` | Climb past 70% — capacity headroom for spikes |
+| `DatabaseMemoryUsagePercentage` | Climb past 70%: capacity headroom for spikes |
 | `ReplicationLag` | > 1s sustained (multi-cluster failover scenarios) |
 | `CurrConnections` | Near `maxclients` (default 65000) |
 
@@ -1125,7 +1120,7 @@ Two opt-in Lambda functions are provided by the module:
 **ECS restart-on-alarm Lambda** (`var.enable_restart_on_alarm_lambda = true`):
 - Subscribes to CloudWatch alarms (you wire which alarms it listens to)
 - On alarm `OK → ALARM` transition, forces an ECS service `update-service --force-new-deployment` to rebuild tasks
-- Use sparingly — a flapping alarm can cause restart loops. Source: `restart_ecs_on_alarm.mjs`
+- Use sparingly; a flapping alarm can cause restart loops. Source: `restart_ecs_on_alarm.mjs`
 
 ---
 
@@ -1145,12 +1140,12 @@ Pool exhaustion, sequence drift, and an RPC throttle can all present as "transac
 | --- | --- | --- |
 | No `tx_id` returned | Synchronous: auth, fee budget, or enqueue | Check ECS service events and ALB target health; tail relayer logs for the inbound request |
 | `tx_id` returned, never confirmed | Async: channel acquire, build, sign, submit, or poll | `oz-relayer tx show <tx-id> -r channels-fund --json -p <env>` |
-| `POOL_CAPACITY` errors | Channel pool exhausted | §10.1; then bootstrap more channels |
-| `INSUFFICIENT_FEE` / stuck at `submitted` | Fee ceiling below network floor | §10.2; raise `MAX_FEE` |
-| `TRY_AGAIN_LATER` in logs | Horizon throttle or per-channel saturation | §10.3; check fund account balance and RPC provider health |
-| `provider paused` in logs | RPC failover triggered | §8.4; query each RPC provider's health endpoint |
-| Sequence errors / `LOCKED_CONFLICT` | Redis sequence counter drift or lock contention | §8.7; inspect the affected channel's Redis key |
-| DLQ accumulation | Repeated worker failures | §10.5; inspect DLQ messages for the root error |
+| `POOL_CAPACITY` errors | Channel pool exhausted | [§10.1](#101-channel-account-exhaustion-pool_capacity); then bootstrap more channels |
+| `INSUFFICIENT_FEE` / stuck at `submitted` | Fee ceiling below network floor | [§10.2](#102-fee-bump-tuning-under-congestion); raise `MAX_FEE` |
+| `TRY_AGAIN_LATER` in logs | Horizon throttle or per-channel saturation | [§10.3](#103-try_again_later-from-rpc-provider-throttle-and-per-channel-saturation); check fund account balance and RPC provider health |
+| `provider paused` in logs | RPC failover triggered | [§8.4](#84-common-log-patterns-to-search); query each RPC provider's health endpoint |
+| Sequence errors / `LOCKED_CONFLICT` | Redis sequence counter drift or lock contention | [§8.7](#87-redis-sequence-counter-inspection); inspect the affected channel's Redis key |
+| DLQ accumulation | Repeated worker failures | [§10.5](#105-sqs-dlq-accumulation); inspect DLQ messages for the root error |
 
 The debugging workflow correlates data across three sources: the relayer API, CloudWatch logs, and the Stellar Horizon API.
 
@@ -1162,7 +1157,7 @@ The debugging workflow correlates data across three sources: the relayer API, Cl
 | Error message | Search logs for the error pattern |
 | Time window | Tail logs for that period |
 | Stellar tx hash | Query Horizon, then work backwards to the relayer’s tx record |
-| “What’s failing right now” | Run the error-aggregation workflow (Section 8.5) |
+| “What’s failing right now” | Run the error-aggregation workflow ([Section 8.5](#85-error-aggregation-workflow)) |
 
 ### 8.2: Transaction-ID to request-ID correlation
 
@@ -1185,7 +1180,7 @@ Relayer logs are JSON with a `span` field containing correlation identifiers:
 
 The workflow:
 
-1. Get the transaction record: `oz-relayer tx show <tx-id> -r channels-fund --json -p <env>` — gives you `created_at` (for log time-window) and the full state machine history.
+1. Get the transaction record: `oz-relayer tx show <tx-id> -r channels-fund --json -p <env>`: gives you `created_at` (for log time-window) and the full state machine history.
 2. Filter logs by `tx_id`:
     
     ```bash
@@ -1261,15 +1256,15 @@ When the question is “what’s failing right now”:
     ```
     
 2. Categorize errors by stage (fee / sequence / timeout / RPC / signer).
-3. Count by transaction status — are these tx that never submitted, submitted but didn’t confirm, or confirmed-but-the-caller-saw-an-error?
-4. Identify temporal clustering — bursts often correlate with provider events or deploys.
+3. Count by transaction status; are these tx that never submitted, submitted but didn’t confirm, or confirmed-but-the-caller-saw-an-error?
+4. Identify temporal clustering; bursts often correlate with provider events or deploys.
 
 ### 8.6: Stuck-transaction workflow
 
 For a transaction that never confirms:
 
 1. Check tx status: `oz-relayer tx show <tx-id> ... --json`. If `submitted` with a hash, the relayer believes it sent.
-2. Check onchain state: `curl https://horizon.stellar.org/transactions/<hash>` — does Horizon see it?
+2. Check onchain state: `curl https://horizon.stellar.org/transactions/<hash>`: does Horizon see it?
 3. Compare fee competitiveness:
     
     ```bash
@@ -1289,7 +1284,7 @@ The relayer maintains per-account sequence counters in Redis under the key patte
 relayer:transaction_counter:channels-fund:<stellar-address>
 ```
 
-To inspect (requires a bastion or AWS Session Manager into a task with Redis access — ElastiCache is VPC-scoped):
+To inspect (requires a bastion or AWS Session Manager into a task with Redis access; ElastiCache is VPC-scoped):
 
 ```bash
 # From inside a task or bastion with VPC access
@@ -1312,7 +1307,7 @@ aws ecs execute-command \
   --command "/bin/sh"
 ```
 
-Use sparingly — production tasks should not need this for routine operations. Common legitimate uses: capturing a network trace during a suspected RPC issue, inspecting in-process state when logs don’t tell a clear story.
+Use sparingly; production tasks should not need this for routine operations. Common legitimate uses: capturing a network trace during a suspected RPC issue, inspecting in-process state when logs don’t tell a clear story.
 
 ---
 
@@ -1325,7 +1320,7 @@ All secrets are stored as `SecureString` in AWS SSM Parameter Store. The ECS tas
 - The container image
 - Terraform state (only ARNs)
 - ECS task definition JSON
-- CloudWatch logs (unless your application logs them — which the relayer does not)
+- CloudWatch logs (unless your application logs them; which the relayer does not)
 
 The Terraform `lifecycle { ignore_changes = [value] }` on SSM parameters means: once provisioned, you can rotate secrets directly via `aws ssm put-parameter --overwrite` without involving Terraform.
 
@@ -1350,7 +1345,7 @@ aws ecs update-service \
 
 ### 9.2: Network isolation
 
-- **ALB ingress:** when Cloudflare is enabled, the ALB security group is restricted to Cloudflare’s published IP ranges (the module pulls these from Cloudflare’s API). Public ingress to the ALB directly is blocked. When Cloudflare is disabled, you must explicitly populate `alb_allowed_ipv4_cidrs` — by default, an empty allow-list means `0.0.0.0/0` is allowed.
+- **ALB ingress:** when Cloudflare is enabled, the ALB security group is restricted to Cloudflare’s published IP ranges (the module pulls these from Cloudflare’s API). Public ingress to the ALB directly is blocked. When Cloudflare is disabled, you must explicitly populate `alb_allowed_ipv4_cidrs`: by default, an empty allow-list means `0.0.0.0/0` is allowed.
 - **ALB egress:** restricted to the VPC CIDR (only the ECS service can be reached).
 - **ECS task egress:** allowed to `0.0.0.0/0` (the task needs to reach Soroban RPC, Horizon, AWS APIs, and any webhook destinations).
 - **ECS task ingress:** restricted to the ALB security group on the container port; metrics port (8081) is `self`only (sidecar containers only).
@@ -1364,7 +1359,7 @@ The ECS task IAM role is scoped to:
 - `ssm:GetParameter*` on `arn:aws:ssm:<region>:<account>:parameter/<app_name>-<env>/*`
 - `sqs:*` on the relayer’s queue ARN pattern
 - `logs:CreateLogStream`, `logs:PutLogEvents`, `logs:CreateLogGroup` on the relayer’s log group
-- `cloudwatch:PutMetricData` (unscoped — CloudWatch metrics namespacing happens application-side)
+- `cloudwatch:PutMetricData` (unscoped; CloudWatch metrics namespacing happens application-side)
 - `aps:RemoteWrite` on the AMP workspace (when Prometheus is enabled)
 - `ssmmessages:*` for ECS Exec
 
@@ -1372,9 +1367,9 @@ The ECS execution IAM role additionally has:
 
 - `ssm:GetParameters` on the same SSM prefix (used to inject secrets at task start)
 
-No `kms:*` permissions are granted to the task role by this module — KMS access for signers is configured at the relayer-config layer per signer (operator provisions a KMS key per fund relayer or per channel-account signer).
+No `kms:*` permissions are granted to the task role by this module; KMS access for signers is configured at the relayer-config layer per signer (operator provisions a KMS key per fund relayer or per channel-account signer).
 
-**OpenZeppelin’s production pattern for KMS access:** rather than granting `kms:Sign` and `kms:GetPublicKey` permissions through the ECS task IAM role, the production deployment attaches the task role’s principal to the **KMS key’s resource policy**. This puts authorization on the key (and thus auditable in the key’s CloudTrail data plane) rather than on the role. Either pattern works; the resource-policy approach scales better when you have many keys (one per fund relayer or per channel signer at scale).
+**OpenZeppelin’s production pattern for KMS access:** rather than granting `kms:Sign` and `kms:GetPublicKey` permissions through the ECS task IAM role, the production deployment attaches the task role’s principal to the KMS key’s resource policy. This puts authorization on the key (and thus auditable in the key’s CloudTrail data plane) rather than on the role. Either pattern works; the resource-policy approach scales better when you have many keys (one per fund relayer or per channel signer at scale).
 
 ```hcl
 # Sketch — attach the ECS task role to a KMS key's resource policy
@@ -1399,37 +1394,37 @@ resource "aws_kms_key_policy" "signer_key" {
 ### 9.4: TLS posture
 
 - **ALB:** TLS 1.3 policy (`ELBSecurityPolicy-TLS13-1-2-2021-06`), HTTPS on 443, HTTP redirects to HTTPS with 301.
-- **Redis:** in-transit encryption enabled, mode `preferred` (clients may connect over TLS or not — operator can tighten to `required` if all clients support TLS).
-- **Cloudflare → ALB:** the **edge certificate** (client-facing TLS) is issued automatically by Cloudflare the moment a DNS record for your domain is created in the zone — there is no manual cert-provisioning step and no Terraform plumbing required for it (Universal SSL handles this). For end-to-end TLS between Cloudflare and your ALB, set the **zone SSL mode** to "Full (strict)" so Cloudflare validates the ALB's ACM cert on the back-half. The SSL-mode setting is independent of edge-cert issuance and is configured either via the Cloudflare dashboard or under Terraform control via the Cloudflare provider (`cloudflare_zone_settings_override`).
+- **Redis:** in-transit encryption enabled, mode `preferred` (clients may connect over TLS or not; operator can tighten to `required` if all clients support TLS).
+- **Cloudflare → ALB:** the edge certificate (client-facing TLS) is issued automatically by Cloudflare the moment a DNS record for your domain is created in the zone; there is no manual cert-provisioning step and no Terraform plumbing required for it (Universal SSL handles this). For end-to-end TLS between Cloudflare and your ALB, set the zone SSL mode to "Full (strict)" so Cloudflare validates the ALB's ACM cert on the back-half. The SSL-mode setting is independent of edge-cert issuance and is configured either via the Cloudflare dashboard or under Terraform control via the Cloudflare provider (`cloudflare_zone_settings_override`).
 
 ### 9.5: Cloudflare-side auth pattern
 
 The Worker (`worker.mjs`) does two distinct things to inbound requests:
 
-1. **User-key validation** — caller-provided `Authorization: Bearer <user-key>` is hashed (`SHA-256(KEY_SALT:user-key)`) and looked up in KV. Match required, scope (mainnet/testnet) enforced.
-2. **Upstream injection** — the request is rewritten before forwarding to the ALB: `Authorization` becomes `Bearer <static-api-key>`, and a new `x-consumer-key: <user-key>` header is added.
+1. **User-key validation**: caller-provided `Authorization: Bearer <user-key>` is hashed (`SHA-256(KEY_SALT:user-key)`) and looked up in KV. Match required, scope (mainnet/testnet) enforced.
+2. **Upstream injection**: the request is rewritten before forwarding to the ALB: `Authorization` becomes `Bearer <static-api-key>`, and a new `x-consumer-key: <user-key>` header is added.
 
 This means:
 - The upstream relayer always sees the static API key (one secret to manage).
 - The relayer’s Channels plugin uses `x-consumer-key` for per-caller fee tracking (configured via `API_KEY_HEADER=x-consumer-key`).
-- A user key being compromised does not compromise the upstream relayer’s auth — only that user’s quota.
+- A user key being compromised does not compromise the upstream relayer’s auth; only that user’s quota.
 
-**Key salt rotation:** `KEY_SALT` is the salt mixed into the hash. Rotating it invalidates all existing user keys (they hash to a different value). Plan key-salt rotations as a forced re-issue event — communicate ahead, run `/gen` again, accept downtime for callers who don’t re-fetch.
+**Key salt rotation:** `KEY_SALT` is the salt mixed into the hash. Rotating it invalidates all existing user keys (they hash to a different value). Plan key-salt rotations as a forced re-issue event; communicate ahead, run `/gen` again, accept downtime for callers who don’t re-fetch.
 
 ### 9.6: KMS for Stellar signers
 
 Channel-account and fund-relayer signers should use AWS KMS for production. Per signer:
 
-- **KMS key spec:** `ECC_NIST_EDWARDS25519` — the AWS KMS asymmetric-sign Ed25519 curve. This is what Stellar requires. Supported signing algorithms on this KeySpec: `ED25519_SHA_512` and `ED25519_PH_SHA_512` (pre-hashed variant). For comparison, EVM signers use `ECC_SECG_P256K1` (secp256k1) — curve choice is the only KMS-side difference between Stellar and EVM relayers.
+- **KMS key spec:** `ECC_NIST_EDWARDS25519`: the AWS KMS asymmetric-sign Ed25519 curve. This is what Stellar requires. Supported signing algorithms on this KeySpec: `ED25519_SHA_512` and `ED25519_PH_SHA_512` (pre-hashed variant). For comparison, EVM signers use `ECC_SECG_P256K1` (secp256k1); curve choice is the only KMS-side difference between Stellar and EVM relayers.
 - **IAM grants on the KMS key:** `kms:Sign` + `kms:GetPublicKey` to the ECS task role's principal.
-- **CloudTrail Data Access logging** should be enabled on the key for compliance — every signature is then auditable with caller IAM principal, timestamp, request ID, and outcome.
+- **CloudTrail Data Access logging** should be enabled on the key for compliance; every signature is then auditable with caller IAM principal, timestamp, request ID, and outcome.
 
 For rotation, follow the side-by-side procedure: provision a new KMS key, register a new signer/relayer ID, fund the new onchain account, drain the old, retire. On Stellar the onchain account address is derived from the signer's public key, so rotation always means a new account.
 
 ### 9.7: What is NOT in this module
 
 - KMS keys for signers (operator provisions per signer)
-- VPC, subnets, NAT gateway (operator provides — the module attaches to your existing VPC)
+- VPC, subnets, NAT gateway (operator provides; the module attaches to your existing VPC)
 - Bastion / Session Manager access to Redis (operator’s choice of access pattern)
 - WAF rules on the ALB (operator’s choice; module provides ingress IP restriction only)
 - Multi-region replication of the deployment (single-region only)
@@ -1462,17 +1457,17 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 
 **Root cause:** the Stellar fee market shifted above your static fee ceiling, so submissions are stuck at `INSUFFICIENT_FEE` (or sit unconfirmed until they expire).
 
-> **Channels fee policy — read this before tuning.**
+> **Channels fee policy; read this before tuning.**
 >
-> The Channels plugin uses **static fee values for both limited and non-limited contracts** (the single `MAX_FEE` setting applies to everything). On `INSUFFICIENT_FEE`, the plugin **does not dynamically bump the fee** — it simply resubmits the transaction at the same fee until it confirms or expires.
+> The Channels plugin uses static fee values for both limited and non-limited contracts (the single `MAX_FEE` setting applies to everything). On `INSUFFICIENT_FEE`, the plugin does not dynamically bump the fee: it simply resubmits the transaction at the same fee until it confirms or expires.
 >
-> This is a deliberate policy. Because channels absorbs the inclusion fee on behalf of callers, automatic fee-bumping on `INSUFFICIENT_FEE` which would cause the service's own in-flight transactions to compete against each other on price, dragging the effective fee floor up for the whole pool and turning every congestion spike into a self-inflicted fee-escalation spiral. Static fee + resubmit keeps the price floor an *operator-controlled* knob rather than a market-driven one — particularly important for a service that is free at the API boundary.
+> This is a deliberate policy. Because channels absorbs the inclusion fee on behalf of callers, automatic fee-bumping on `INSUFFICIENT_FEE` which would cause the service's own in-flight transactions to compete against each other on price, dragging the effective fee floor up for the whole pool and turning every congestion spike into a self-inflicted fee-escalation spiral. Static fee + resubmit keeps the price floor an *operator-controlled* knob rather than a market-driven one; particularly important for a service that is free at the API boundary.
 
-**Recovery:** raise `MAX_FEE` in the container env vars and re-deploy. Range to consider: `1,000,000` (0.1 XLM, default) up to `10,000,000` (1 XLM) for sustained congestion. The change applies uniformly across limited and non-limited contracts — there is no per-class fee override.
+**Recovery:** raise `MAX_FEE` in the container env vars and re-deploy. Range to consider: `1,000,000` (0.1 XLM, default) up to `10,000,000` (1 XLM) for sustained congestion. The change applies uniformly across limited and non-limited contracts; there is no per-class fee override.
 
 **Prevention:**
 
-- Alert on transaction confirmation lag exceeding your SLA — sustained lag is the leading indicator that the market has overtaken `MAX_FEE`.
+- Alert on transaction confirmation lag exceeding your SLA; sustained lag is the leading indicator that the market has overtaken `MAX_FEE`.
 - Periodically diff Horizon `/fee_stats.max_fee.mode` against your configured `MAX_FEE`. If the market mode sits above your ceiling for more than a few minutes, in-flight submissions are likely stuck.
 - Treat `MAX_FEE` as a control-plane setting, not a per-transaction parameter. Re-evaluate it during congestion events and after any sustained mainnet-wide fee shifts.
 
@@ -1482,10 +1477,10 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 
 **Root cause:** two distinct origins, only one of which is a provider-side rate limit.
 
-1. **Provider throttling** — your RPC provider's per-key rate limit is being hit. The Terraform module does not configure RPC URLs (that lives in the relayer config inside the Docker image), so the recovery lever is at the relayer-config layer, not the infra layer.
-2. **Per-channel saturation** — Stellar RPC also returns `TRY_AGAIN_LATER` when a single channel account (one relayer) has more in-flight transactions than the network or provider will accept on its behalf. We've observed this both during channel-account creation/scaling and during steady-state high-throughput broadcasting.
+1. **Provider throttling**: your RPC provider's per-key rate limit is being hit. The Terraform module does not configure RPC URLs (that lives in the relayer config inside the Docker image), so the recovery lever is at the relayer-config layer, not the infra layer.
+2. **Per-channel saturation**: Stellar RPC also returns `TRY_AGAIN_LATER` when a single channel account (one relayer) has more in-flight transactions than the network or provider will accept on its behalf. We've observed this both during channel-account creation/scaling and during steady-state high-throughput broadcasting.
 
-> **Plugin auto-mitigation.** On `TRY_AGAIN_LATER`, the Channels plugin pulls a different *idle* channel from the pool (stack-based selection) and resubmits the transaction on that one. In steady state this manifests as a brief retry, not a user-visible failure — but if the entire pool is saturated and no idle channel is available, the error surfaces to the caller.
+> **Plugin auto-mitigation.** On `TRY_AGAIN_LATER`, the Channels plugin pulls a different *idle* channel from the pool (stack-based selection) and resubmits the transaction on that one. In steady state this manifests as a brief retry, not a user-visible failure; but if the entire pool is saturated and no idle channel is available, the error surfaces to the caller.
 
 **Recovery:**
 
@@ -1495,7 +1490,7 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 **Prevention:**
 
 - Always run at least two independent RPC providers for mainnet. Negotiate rate limits at peak load against your projected throughput.
-- Size the channel-account pool with headroom — if peak in-flight transaction count routinely exceeds ~70% of pool size, you're a burst away from saturation and the per-channel path will start surfacing to callers.
+- Size the channel-account pool with headroom; if peak in-flight transaction count routinely exceeds ~70% of pool size, you're a burst away from saturation and the per-channel path will start surfacing to callers.
 
 ### 10.4: Redis sizing under burst
 
@@ -1503,7 +1498,7 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 
 **Root cause:** the `cache.r7g.large` default may be undersized for sustained 23 TPS with the full ~1000-relayer pool.
 
-**Recovery:** scale up — `redis_node_type = "cache.r7g.xlarge"` or larger; `terraform apply`. ElastiCache supports online resize but expect a brief failover during the operation if `redis_num_cache_clusters > 1`.
+**Recovery:** scale up: `redis_node_type = "cache.r7g.xlarge"` or larger; `terraform apply`. ElastiCache supports online resize but expect a brief failover during the operation if `redis_num_cache_clusters > 1`.
 
 **Prevention:** alert when memory usage exceeds 70%; baseline CPU during expected peak before sizing.
 
@@ -1511,7 +1506,7 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 
 **Symptom:** the `<prefix>-<queue>-dlq-messages` CloudWatch alarm fires.
 
-**Root cause:** a class of messages is being received more than `max_receive_count` times (6 for most queues; 2 for `transaction-submission`; 1000 for status-check variants). The 2-receive limit on `transaction-submission` is intentional — submission failures should not retry many times.
+**Root cause:** a class of messages is being received more than `max_receive_count` times (6 for most queues; 2 for `transaction-submission`; 1000 for status-check variants). The 2-receive limit on `transaction-submission` is intentional; submission failures should not retry many times.
 
 **Recovery:**
 - Inspect DLQ messages: `aws sqs receive-message --queue-url <dlq-url> --max-number-of-messages 10`.
@@ -1519,7 +1514,7 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 `bash   aws sqs start-message-move-task --source-arn <dlq-arn> --destination-arn <main-queue-arn>`
 - For persistent failures, delete the messages and root-cause the underlying issue.
 
-**Prevention:** wire the DLQ alarm to a high-priority pager — DLQ growth is rarely transient.
+**Prevention:** wire the DLQ alarm to a high-priority pager; DLQ growth is rarely transient.
 
 ### 10.6: Cloudflare KV rate limits
 
@@ -1549,15 +1544,15 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 
 ### 10.9: Cloudflare Worker deployment is 100% strategy
 
-**Symptom:** none — but be aware.
+**Symptom:** none; but be aware.
 
 **Root cause:** the Terraform module deploys the Worker via `cloudflare_workers_deployment` with `strategy = "percentage"` and `versions = [{ percentage = 100, version_id = ... }]`. There is no canary at the Cloudflare-Worker level.
 
-**Recovery:** if you want gradual Worker rollout, deploy two `cloudflare_worker_version` resources and adjust the `percentage` field over time. Doing this from Terraform alone is awkward — typically operators do this via Wrangler CLI for Workers and treat the Terraform-managed version as the production reference.
+**Recovery:** if you want gradual Worker rollout, deploy two `cloudflare_worker_version` resources and adjust the `percentage` field over time. Doing this from Terraform alone is awkward; typically operators do this via Wrangler CLI for Workers and treat the Terraform-managed version as the production reference.
 
 ### 10.10: Canary deployment at the ECS layer
 
-**The public `relayer-channels-infra` Terraform module is a single ECS service with autoscaling.** OpenZeppelin’s internal production stack adds a second ECS service for canary traffic; that pattern is documented in section 7.1 of this guide. Recap:
+**The public `relayer-channels-infra` Terraform module is a single ECS service with autoscaling.** OpenZeppelin’s internal production stack adds a second ECS service for canary traffic; that pattern is documented in [section 7.1](#71-deploys) of this guide. Recap:
 
 - Two ECS services in one cluster: `<app>-service-mainnet` (stable) and `<app>-service-canary`. Both share Redis, SQS, secrets, and IAM.
 - One ALB with HTTPS listener using `weighted_forward` across two target groups. Default split `{stable: 100, canary: 0}`; canary parked at `desired_count = 0`.
@@ -1568,9 +1563,9 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 
 **Pitfalls to plan around:**
 
-- **Shared Redis means state mixes.** A bad canary that corrupts state in Redis affects all callers. Keep canary images conservative — only promote *fully validated* image candidates to canary, not first-pass builds.
-- **Stickiness blinds you to small-percentage canary issues.** If your canary takes 5% of traffic but 95% of users get stuck to the stable variant, you only learn from 5% of caller behavior. Decide canary bake-times accordingly — at 10% canary, plan a 6-hour minimum bake; at 25%, a 2-hour minimum.
-- **Auto-restart Lambda + canary is dangerous.** If you wire the optional ECS-restart-on-alarm Lambda (section 7.9) to canary alarms, a flapping canary will force restarts that mask the underlying issue. Either disable the Lambda for canary alarms or set very conservative alarm thresholds.
+- **Shared Redis means state mixes.** A bad canary that corrupts state in Redis affects all callers. Keep canary images conservative; only promote *fully validated* image candidates to canary, not first-pass builds.
+- **Stickiness blinds you to small-percentage canary issues.** If your canary takes 5% of traffic but 95% of users get stuck to the stable variant, you only learn from 5% of caller behavior. Decide canary bake-times accordingly; at 10% canary, plan a 6-hour minimum bake; at 25%, a 2-hour minimum.
+- **Auto-restart Lambda + canary is dangerous.** If you wire the optional ECS-restart-on-alarm Lambda ([section 7.9](#79-post-restart-checklist)) to canary alarms, a flapping canary will force restarts that mask the underlying issue. Either disable the Lambda for canary alarms or set very conservative alarm thresholds.
 
 ---
 
@@ -1580,8 +1575,8 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 
 | Repo | Purpose |
 | --- | --- |
-| `OpenZeppelin/relayer-channels-infra` | Terraform modules — the deployment unit |
-| `OpenZeppelin/openzeppelin-relayer` — `examples/channels-plugin-example` | Source of the Docker image that runs in Fargate |
+| `OpenZeppelin/relayer-channels-infra` | Terraform modules: the deployment unit |
+| `OpenZeppelin/openzeppelin-relayer`: `examples/channels-plugin-example` | Source of the Docker image that runs in Fargate |
 | `OpenZeppelin/relayer-plugin-channels` | The Channels plugin runtime (TypeScript) |
 
 ### Reference: SQS queue tuning summary
@@ -1597,7 +1592,7 @@ For Stellar with ~5s settlement, `safety_factor = 1.5–2.0`. At 23 TPS sustaine
 | `token-swap-request` | 300s | 6 | Token swap processing (Solana-specific; unused for Stellar) |
 | `relayer-health-check` | 300s | 6 | Periodic relayer-state probes |
 
-The `max_receive_count = 1000` on status-check queues reflects that status polling is expected to retry many times before a transaction confirms; the `max_receive_count = 2` on submission queues reflects that submission failures should not retry indefinitely. These values are baked into `sqs.tf` and not exposed as Terraform variables — change them by modifying the module.
+The `max_receive_count = 1000` on status-check queues reflects that status polling is expected to retry many times before a transaction confirms; the `max_receive_count = 2` on submission queues reflects that submission failures should not retry indefinitely. These values are baked into `sqs.tf` and not exposed as Terraform variables; change them by modifying the module.
 
 ### Reference: module outputs
 
@@ -1667,7 +1662,7 @@ For questions on this guide, deployment issues, or improvements to the reference
 
 ### Source repositories
 
-All three are public OpenZeppelin repositories. None require forking to deploy — the Terraform module can be consumed remotely via its `source` URL, and the Docker image is published to ECR Public.
+All three are public OpenZeppelin repositories. None require forking to deploy; the Terraform module can be consumed remotely via its `source` URL, and the Docker image is published to ECR Public.
 
 | Repository |
 | --- |
