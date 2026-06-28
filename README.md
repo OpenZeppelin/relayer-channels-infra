@@ -811,7 +811,7 @@ These are set inside the ECS task definition by the Terraform module and should 
 
 ### Production reference values
 
-For operators targeting OpenZeppelin’s reference scale (~2M tx/day, ~1000 relayers, 11–25 Fargate tasks of 8 vCPU / 16 GB), these are the env-var values OpenZeppelin actually runs in production. Use them as a calibration point; do not blindly copy without sizing your downstream dependencies (Redis, RPC, KMS rate limits) to match.
+For operators targeting OpenZeppelin’s reference scale (~2-3M tx/day, ~2500 relayers, 11–25 Fargate tasks of 8 vCPU / 16 GB), these are the env-var values OpenZeppelin actually runs in production. Use them as a calibration point; do not blindly copy without sizing your downstream dependencies (Redis, RPC, KMS rate limits) to match.
 
 ```hcl
 container_environment = [
