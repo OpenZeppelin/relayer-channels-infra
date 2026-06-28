@@ -43,6 +43,20 @@ export default {
       });
     }
 
+    // --- Health check (unauthenticated) ---
+    if (url.pathname === "/api/v1/health" || url.pathname === "/testnet/api/v1/health") {
+      const upstream = new URL(env.RELAYER_BASE_URL);
+      upstream.pathname = url.pathname;
+      const resp = await fetch(upstream.toString(), {
+        method: "GET",
+        headers: { "authorization": `Bearer ${env.RELAYER_STATIC_API_KEY}` },
+      });
+      const out = new Headers(resp.headers);
+      const ch = cors(request.headers.get("Origin"));
+      for (const [k, v] of Object.entries(ch)) out.set(k, v);
+      return new Response(resp.body, { status: resp.status, headers: out });
+    }
+
     const auth = request.headers.get("authorization") || "";
     const m = auth.match(/^Bearer\s+(.+)$/i);
     if (!m) return unauthorized();
