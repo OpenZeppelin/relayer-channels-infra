@@ -84,7 +84,7 @@ resource "google_cloud_run_v2_service" "this" {
   project  = var.project_id
   name     = "${local.app_name}-service"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   deletion_protection = local.lb_deletion_protection_effective
 
