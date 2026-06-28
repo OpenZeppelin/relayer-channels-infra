@@ -5,10 +5,6 @@ data "google_project" "current" {
   project_id = var.project_id
 }
 
-data "cloudflare_ip_ranges" "this" {
-  count = var.enable_cloudflare ? 1 : 0
-}
-
 # ---------------------------------------------------------------------------
 # Locals
 # ---------------------------------------------------------------------------

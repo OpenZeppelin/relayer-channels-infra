@@ -2,7 +2,7 @@
 # Artifact Registry
 #
 # Private Docker repository for storing relayer container images.
-# Cloud Run pulls images from here using the default compute service account.
+# Cloud Run pulls images from here using its dedicated service account (google_service_account.cloud_run).
 # ---------------------------------------------------------------------------
 
 resource "google_artifact_registry_repository" "this" {

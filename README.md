@@ -1,14 +1,14 @@
 # Hosted Stellar Relayer on AWS: Operator Deployment Guide
 
-> A step-by-step guide for infrastructure teams (e.g., Blockdaemon, SDF) deploying a hosted Stellar relayer service that mirrors OpenZeppelin’s existing production setup. 
+> A step-by-step guide for infrastructure teams deploying a hosted Stellar relayer service that mirrors OpenZeppelin’s existing production setup.
 
 ---
 
 ## 1. Overview
 
-OpenZeppelin currently runs a hosted Stellar relayer service at `channels.openzeppelin.com` (mainnet) and `channels.openzeppelin.com/testnet` (testnet). The service absorbs the operational complexity of parallel Stellar transaction submission (channel-account pool management, fee bumping, sequence-number arbitration, multi-RPC failover) and exposes a simple HTTP API to downstream callers.
+OpenZeppelin currently runs a hosted Stellar relayer service. The service absorbs the operational complexity of parallel Stellar transaction submission (channel-account pool management, fee bumping, sequence-number arbitration, multi-RPC failover) and exposes a simple HTTP API to downstream callers.
 
-This guide is for infrastructure teams deploying hosted relayer service for SDF providing same throughput as OpenZeppelin. Blockdaemon is the first such operator; this guide is written to be portable to others.
+This guide is for infrastructure teams deploying a hosted relayer service that provides throughput comparable to OpenZeppelin’s.
 
 ### What you will end up with
 
@@ -206,16 +206,11 @@ The 202 response is returned synchronously; the rest happens asynchronously via 
 
 ### Capacity profile
 
-The reference deployment OpenZeppelin runs handles a growing ~3M transactions per day sustained, served by ~1,000 relayers (fund + channel-account entities combined). Two recent windows (per `channels-traffic-analysis-2026-05-12.html`):
+The reference deployment OpenZeppelin runs handles a growing ~2-3M transactions per day sustained, served by ~2500 relayers (fund + channel-account entities combined).
 
-| Window | Total tx (7d) | Daily avg | Sustained tx/s | Peak day | Peak tx/s |
-| --- | --- | --- | --- | --- | --- |
-| Apr 28 – May 4 | 19.19M | 2.74M | ~31.7 | May 4 (3.90M) | ~45 |
-| May 5 – May 11 | 20.88M (+8.8% WoW) | 2.98M | ~34.5 | May 8 (3.67M) | ~42.5 |
+Plan for headroom: autoscaling minimums should comfortably cover peak days, not just the daily average.
 
-The deployment is trending up WoW (+8.8% in the most recent window) and routinely absorbs daily peaks ~25–30% above the 7-day average. Plan for headroom because autoscaling minimums should comfortably cover the peak day, not the average.
-
-**Traffic concentration.** In both windows, ~99%+ of all transactions terminate at a small set of high-volume Soroban contracts registered in `LIMITED_CONTRACTS`. The top contract alone accounts for 73–97% of daily volume depending on its onchain phase, with the second contributing most of the remainder. Non-limited contracts are below sampling resolution (≤0.2%). This is what the contract-capacity-ratio knob is sized against. The full env-var tuning is in [section 6](#6-configuration-reference).
+**Traffic concentration.** Almost all transactions terminate at a small set of high-volume Soroban contracts. These are the contracts you register in `LIMITED_CONTRACTS`, and that concentration is what the contract-capacity-ratio knob is sized against. The full env-var tuning is in [section 6](#6-configuration-reference).
 
 **The Terraform module defaults are sized for `environment = "prod"` workloads but tuned conservatively.** For reference, here is the actual production configuration OpenZeppelin runs at this scale (sanitized):
 

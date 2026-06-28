@@ -39,7 +39,7 @@ container_image = "us-docker.pkg.dev/my-project/relayer/channels:latest"
 # fund_relayer_id = "channels-fund"
 # log_level       = "warn"
 # distributed_mode = true
-# queue_backend    = "memory"   # use "pubsub" once the app supports it
+# queue_backend    = "pubsub"   # "redis" or "pubsub" (module default: pubsub)
 
 # ---------------------------------------------------------------------------
 # Secrets (store these securely — do NOT commit this file)

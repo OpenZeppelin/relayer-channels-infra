@@ -57,3 +57,6 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Serena
+.serena/

@@ -231,7 +231,7 @@ Gather everything in this section before running `terraform apply`. Missing any 
 
 ### 2.3. Stellar-side prerequisites
 
-- **Soroban RPC access:** at least two independent private providers from different operators recommended for mainnet. The public image ships with the default public RPC; you override it after deployment (see [§4.7](#47-dns-and-ssl)).
+- **Soroban RPC access:** at least two independent private providers from different operators recommended for mainnet. The public image ships with the default public RPC; you override it after deployment (see [§4.8](#48-override-rpc-endpoints)).
 - **XLM** to fund the relayer's Stellar account and bootstrap channel accounts. Budget at least 250 XLM for 200 channel accounts plus the fund account.
 
 ### 2.4. Repos you'll reference
@@ -250,8 +250,8 @@ Run stg and prod as separate Terraform workspaces with isolated state:
 
 | Env | Network | Working directory | Pub/Sub prefix | VPC connector CIDR |
 | --- | --- | --- | --- | --- |
-| `stg` | testnet | `examples/gcp/` | `relayer-testnet-stg-` | `10.8.0.0/28` |
-| `prod` | mainnet | `examples/gcp-prod/` | `relayer-mainnet-prod-` | `10.9.0.0/28` |
+| `stg` | testnet | `examples/gcp/` (shipped in this repo) | `relayer-testnet-stg-` | `10.8.0.0/28` |
+| `prod` | mainnet | `examples/gcp-prod/` (a separate, isolated workspace directory you create) | `relayer-mainnet-prod-` | `10.9.0.0/28` |
 
 Use different CIDRs if both environments share a VPC. Resource names auto-suffix with `-<environment>` except for `prod`.
 
@@ -347,7 +347,7 @@ Then reference it in `container_image` in your tfvars (as shown in [§4.4](#44-c
 
 Tag scheme: `mainnet-<version>` (pinned, use in prod), `mainnet-latest` (moves), `testnet-<version>`, `testnet-latest`.
 
-> The public image ships with `mainnet.sorobanrpc.com` as the default RPC. Override it with private providers after deployment (see [§4.7](#47-dns-and-ssl)).
+> The public image ships with `mainnet.sorobanrpc.com` as the default RPC. Override it with private providers after deployment (see [§4.8](#48-override-rpc-endpoints)).
 
 ### 4.6. Deploy
 
