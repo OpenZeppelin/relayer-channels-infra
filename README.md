@@ -1,6 +1,8 @@
 # Hosted Stellar Relayer on AWS: Operator Deployment Guide
 
-> A step-by-step guide for infrastructure teams deploying a hosted Stellar relayer service that mirrors OpenZeppelin’s existing production setup.
+A step-by-step guide for infrastructure teams deploying a hosted Stellar Relayer service on AWS that mirrors OpenZeppelin’s existing production setup.
+
+It uses Terraform to spin up the full infrastructure in your own AWS account.
 
 ---
 
@@ -208,9 +210,7 @@ The 202 response is returned synchronously; the rest happens asynchronously via 
 
 The reference deployment OpenZeppelin runs handles a growing ~2-3M transactions per day sustained, served by ~2500 relayers (fund + channel-account entities combined).
 
-Plan for headroom: autoscaling minimums should comfortably cover peak days, not just the daily average.
-
-**Traffic concentration.** Almost all transactions terminate at a small set of high-volume Soroban contracts. These are the contracts you register in `LIMITED_CONTRACTS`, and that concentration is what the contract-capacity-ratio knob is sized against. The full env-var tuning is in [section 6](#6-configuration-reference).
+**`LIMITED_CONTRACTS` and pool isolation.** In practice, a small number of Soroban contracts tend to dominate the channel-account pool's submission queue. `LIMITED_CONTRACTS` lists the contract IDs to cap, and `CONTRACT_CAPACITY_RATIO` (a value between 0 and 1) sets the maximum fraction of the pool those listed contracts may collectively occupy at any one moment. This keeps high-throughput contracts from starving other callers of channel capacity. The full env-var tuning is in [section 6](#6-configuration-reference).
 
 **The Terraform module defaults are sized for `environment = "prod"` workloads but tuned conservatively.** For reference, here is the actual production configuration OpenZeppelin runs at this scale (sanitized):
 

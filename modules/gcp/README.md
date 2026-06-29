@@ -179,7 +179,7 @@ Every Stellar transaction has a source account with a monotonically increasing s
 
 The Channels service works around it with a pool of dedicated source accounts (channel accounts). Each in-flight transaction acquires one channel account from the pool, uses its sequence number, and releases it after confirmation. A separate fund account holds the XLM balance. When submitting, the service wraps the channel-signed envelope in a fee-bump transaction, a Stellar primitive that lets a second account pay the network fee. Both accounts are backed by Cloud KMS ED25519 keys.
 
-The pool size you provision in [§4.10](#410-bootstrap-channels) is your throughput ceiling. See [§12.1](#121-channel-pool-exhaustion) for the sizing formula.
+The pool size you provision in [section 4.10](#410-bootstrap-channels) is your throughput ceiling. See [section 12.1](#121-channel-pool-exhaustion) for the sizing formula.
 
 ### 1.6. Resource sizing
 
@@ -231,7 +231,7 @@ Gather everything in this section before running `terraform apply`. Missing any 
 
 ### 2.3. Stellar-side prerequisites
 
-- **Soroban RPC access:** at least two independent private providers from different operators recommended for mainnet. The public image ships with the default public RPC; you override it after deployment (see [§4.8](#48-override-rpc-endpoints)).
+- **Soroban RPC access:** at least two independent private providers from different operators recommended for mainnet. The public image ships with the default public RPC; you override it after deployment (see [section 4.8](#48-override-rpc-endpoints)).
 - **XLM** to fund the relayer's Stellar account and bootstrap channel accounts. Budget at least 250 XLM for 200 channel accounts plus the fund account.
 
 ### 2.4. Repos you'll reference
@@ -343,11 +343,11 @@ Cloud Run can't pull from ECR Public directly. Set up a remote repo to proxy it:
 2. Format: **Docker**, Mode: **Remote**, Source: **Custom**, URL: `https://public.ecr.aws`
 3. Name it `ecr-public`, pick your region
 
-Then reference it in `container_image` in your tfvars (as shown in [§4.4](#44-create-your-tfvars)).
+Then reference it in `container_image` in your tfvars (as shown in [section 4.4](#44-create-your-tfvars)).
 
 Tag scheme: `mainnet-<version>` (pinned, use in prod), `mainnet-latest` (moves), `testnet-<version>`, `testnet-latest`.
 
-> The public image ships with `mainnet.sorobanrpc.com` as the default RPC. Override it with private providers after deployment (see [§4.8](#48-override-rpc-endpoints)).
+> The public image ships with `mainnet.sorobanrpc.com` as the default RPC. Override it with private providers after deployment (see [section 4.8](#48-override-rpc-endpoints)).
 
 ### 4.6. Deploy
 
@@ -735,7 +735,7 @@ Alert when balance drops below 50 XLM. A depleted fund account fails all fee-bum
 curl -sS "https://horizon.stellar.org/ledgers?order=desc&limit=5" | jq '._embedded.records[] | {sequence, closed_at}'
 ```
 
-**`TRY_AGAIN_LATER` in logs:** Horizon is rejecting transactions due to fee competition. Raise `MAX_FEE` (see [§12.7](#127-fee-bump-tuning-under-congestion)). If it appears alongside `provider paused`, check RPC provider health first.
+**`TRY_AGAIN_LATER` in logs:** Horizon is rejecting transactions due to fee competition. Raise `MAX_FEE` (see [section 12.7](#127-fee-bump-tuning-under-congestion)). If it appears alongside `provider paused`, check RPC provider health first.
 
 **RPC provider health:**
 
@@ -830,10 +830,10 @@ The Cloud Run SA (`{app_name}-run`) gets:
 
 If you ever restart with `RESET_STORAGE_ON_START=true` (which wipes Redis), you need to redo the following (the service will be up but non-functional until these are done):
 
-1. **Re-create the signer:** `./scripts/gcp-kms-signer.sh` ([§4.9](#49-create-the-signer))
+1. **Re-create the signer:** `./scripts/gcp-kms-signer.sh` ([section 4.9](#49-create-the-signer))
 2. **Re-create the fund relayer:** via the relayer API using the new signer ID
-3. **Re-run the RPC override:** the PATCH to `/api/v1/networks/stellar:mainnet` ([§4.8](#48-override-rpc-endpoints))
-4. **Re-bootstrap channels:** `oz-channels bootstrap --to <N> -p <env>` ([§4.10](#410-bootstrap-channels))
+3. **Re-run the RPC override:** the PATCH to `/api/v1/networks/stellar:mainnet` ([section 4.8](#48-override-rpc-endpoints))
+4. **Re-bootstrap channels:** `oz-channels bootstrap --to <N> -p <env>` ([section 4.10](#410-bootstrap-channels))
 5. **Fund the fund relayer:** if the onchain account was recreated, send XLM to the new address
 
 Normal restarts and redeployments (without `RESET_STORAGE_ON_START=true`) preserve everything in Redis; none of the above is needed.
