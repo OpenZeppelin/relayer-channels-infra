@@ -1,0 +1,17 @@
+{
+  "name": "channels-load-test",
+  "version": "0.1.0",
+  "private": true,
+  "description": "k6 load test and payload generator for the channels plugin",
+  "type": "module",
+  "scripts": {
+    "payloads": "tsx generate-payloads.ts",
+    "payloads:no-auth": "tsx generate-payloads.ts --types func-auth-no-auth --output payloads.json"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^14.6.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
