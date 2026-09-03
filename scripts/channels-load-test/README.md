@@ -12,17 +12,15 @@ fixed (smoke / sustained / capacity), environments live in `env/*.env`, and the
 runner prints the commit hash — so every run is fully described by those three
 things and results can be compared across time and operators.
 
-The `channels-load-test` skill (`.claude/skills/channels-load-test/`) carries
-the operational runbook for Claude Code users: preflight steps, the spec-derived
-VU ceiling, the safe ladder with liveness gates, and staging recovery. This
-README is the reference for the harness itself: wire format, flags, payload shape.
+This README is the reference for the harness itself: wire format, flags, payload shape.
 
 ## Files here
 
 | File | Purpose |
 |---|---|
 | `run.sh` | Entry point — named profiles × environment files. |
-| `env/staging.env`, `env/mainnet.env` | Per-environment config: URL, contract, timeouts, latency gates, rate defaults. |
+| `env/staging-example.env` | Staging template — copy to `env/staging.env` and edit. |
+| `env/mainnet-example.env` | Mainnet template — copy to `env/mainnet.env` and edit. |
 | `SETUP.md` | What an operator must provision before the first run. |
 | `load-test.k6.js` | The k6 script. Its header carries the raw commands `run.sh` wraps. |
 | `generate-payloads.ts` | Pre-signs Stellar payloads — k6 has no Stellar SDK. |
@@ -31,11 +29,6 @@ README is the reference for the harness itself: wire format, flags, payload shap
 
 Generated `payloads*.json` and `*.meta.json` are gitignored — they contain signed
 transactions bound to a specific account and sequence range.
-
-Provenance: the harness was reconstructed in Aug 2026 from the original
-`smoke.sh` wrapper (CLI contract and presets), `relayer-plugin-channels/scripts/smoke.ts`
-(the four test types), and its `channels-client.ts` (the wire format). None of
-those is needed to run it.
 
 ## Install
 
@@ -86,11 +79,9 @@ others need payload regeneration.
 k6 has no Stellar SDK, so anything needing a signature is built off-line first
 by `generate-payloads.ts`.
 
-Payloads call a **smoke contract** that must exist on the target network. It
-ships in this repo and is deployed by `oz-channels smoke setup` — see SETUP.md.
-The generator's `--contract-id` default is OpenZeppelin's staging contract; when
-testing your own deployment, pass your own contract's ID and put the same ID in
-your env file.
+Payloads call a **smoke contract** that must exist on the target network.
+Deploy it with `oz-channels smoke setup` — see SETUP.md. Pass your contract's
+ID to the generator (`--contract-id`) and put the same ID in your env file.
 
 ```bash
 npm install
@@ -111,7 +102,7 @@ npx tsx generate-payloads.ts --help
 | `--types <list>` | `all` | Comma-separated, or `all` |
 | `--network <net>` | `testnet` | `testnet` \| `mainnet` |
 | `--rpc-url <url>` | per network | Soroban RPC |
-| `--contract-id <id>` | `CDSD3JZB…` | The smoke contract |
+| `--contract-id <id>` | — | Your deployed smoke contract |
 | `--account-name <n>` | `test-account` | Stellar CLI key name |
 | `--valid-for <n>` | `1000` | Auth entry lifetime in ledgers (~85 min) |
 | `--tx-timeout <n>` | `45` | Timebound for both envelope types, seconds. Must stay under 60. |
@@ -188,9 +179,8 @@ RATE=5 DURATION=10m ./run.sh sustained env/staging.env
 ```
 
 The env file carries every environment fact (URL, contract, timeouts, per-type
-latency gates, rate defaults) — see the comments in `env/staging.env`. Running
-against a deployment that is not OpenZeppelin's means copying an env file and
-replacing its values, per SETUP.md.
+latency gates, rate defaults) — see the comments in the env templates. Copy `env/staging-example.env` or
+`env/mainnet-example.env` and replace the values for your deployment, per SETUP.md.
 
 ### Load modes
 
@@ -205,12 +195,6 @@ profile):
 
 To route through the relayer instead of hitting the plugin service directly,
 set `PLUGIN_ID` (e.g. `PLUGIN_ID=channels`) in the env file or the shell.
-
-Historical note: the original `smoke.sh` presets were 10 VUs / 5m / 600 RPM
-(`load`, `load-no-auth`) and 5 VUs / 1m / 300 RPM (`load-quick`). Those are its
-numbers, not recommendations — 10 VUs is the measured staging ceiling, and
-3,000 requests outruns any single-use payload file. Size real runs from the
-profiles above.
 
 ## Environment variables
 
@@ -277,105 +261,22 @@ Thresholds are `http ok > 95%`, `plugin ok > 90%`, `p95 < P95_MS`, `p99 < P99_MS
 from measured baselines, which makes a run a real pass/fail gate: k6 exits
 non-zero on any breach, and the summary names the breached metric.
 
-**Set the latency threshold from the target's own timeout, not a guess.** Staging
-declares `REQUEST_TIMEOUT_SECONDS=20` in its task definition, so a p95 above 20s
-is unreachable there — the service cuts the request off first. Read the live
-value rather than assuming; an earlier version of this file asserted 30s, which
-was the plugin-pool timeout, not the HTTP request timeout the service enforces.
+**Set the latency threshold from the target's own timeout, not a guess.** Read
+your deployment's `REQUEST_TIMEOUT_SECONDS` from its task/service definition — a
+p95 above that value is unreachable because the service cuts the request first.
 
 ## Security
 
 Nothing in this directory hardcodes a key. Pass it from the environment
-(`CHANNELS_STG_API_KEY`) or a secret store, and never paste a key value into this
+(`CHANNELS_API_KEY`) or a secret store, and never paste a key value into this
 README or a results write-up, not even a truncated prefix.
-
-## Baselines from staging
-
-### Single VU, serial
-
-| Test type | Success | Latency |
-|---|---|---|
-| `func-auth-no-auth` | 100% | ~340–480 ms |
-| `xdr-payment` | 100% | ~6.4 s |
-| `func-auth-address-auth` | 100% | ~7.0 s |
-| `xdr-unsigned-soroban` | 100% | ~6.7 s (n=1) |
-
-### Concurrency sweep, 15 requests per level
-
-| VUs | `func-auth-no-auth` median | `func-auth-address-auth` median | its p95 | p95 ÷ median |
-|---|---|---|---|---|
-| 2 | 328 ms | 7,172 ms | 12,085 ms | 1.69× |
-| 3 | 502 ms | 7,141 ms | 12,717 ms | 1.78× |
-| 4 | 622 ms | 7,332 ms | 13,188 ms | 1.80× |
-| 5 | 649 ms | 7,778 ms | 10,093 ms | 1.30× |
-
-Three things worth carrying forward.
-
-**The two paths behave oppositely under concurrency.** `func-auth-no-auth`
-median doubles from 2→5 VUs (328→649 ms) — added concurrency turns into queueing.
-`func-auth-address-auth` median stays roughly flat (7.2→7.8 s) while its
-throughput rises about 2.2× for 2.5× the VUs, i.e. near-linear. The slow path is
-latency-bound per request rather than contention-bound, and is *not* saturated at
-5 VUs. The fast path is closer to its limit.
-
-**`func-auth-address-auth` is bimodal, not slow-on-average.** p95 sits
-consistently around 1.7–1.8× the median, with the gap at 5 VUs measured at
-2,315 ms. Stellar closes ledgers roughly every 5 s, so a plausible reading is
-that requests land either just before or just after a close and some wait an
-extra ledger. **That is a hypothesis, not a measurement** — confirming it means
-correlating submission timestamps against ledger close times, which this harness
-does not do.
-
-**Headroom against the service's 20 s request timeout is thinner than the medians
-suggest.** At 5 VUs the address-auth p95 is 10–13 s, already 33–44% of the
-timeout, and the p95 is what breaches first. Where it actually crosses 20 s is
-not answerable from a 5-VU sample.
-
-The **15× spread** between the no-auth path and the two channel-account paths is
-the headline. `func-auth-no-auth` needs no channel account and no signature
-verification; the other two go through channel-account acquisition and fee
-bumping. Any p95 discussion has to say which type it refers to — a mixed
-`TEST_TYPE=all` p95 is dominated by whichever slow type is in the mix and means
-very little on its own. (One caveat: the no-auth rps figures from these
-few-second runs are dominated by fixed overhead — read its latency column, not
-its throughput.)
-
-## What was verified
-
-Everything below was run and observed, not inferred (25 Aug – 1 Sep 2026):
-
-- **Generator, against Stellar testnet**: all four payload types decode and
-  verify — valid Ed25519 signatures, distinct consecutive sequence numbers,
-  distinct auth nonces, unsigned envelopes for `xdr-unsigned-soroban` with the
-  placeholder source, `timeBounds` ~45 s ahead. `--tx-timeout ≥ 60` rejected up
-  front; `--help` / `--dry-run` / offline path work.
-- **k6 script, against a recording mock**: both URL/header modes send the
-  documented wire format; injected 503 and `{success:false}` rates were
-  reported back exactly; failure classes count into the right counters;
-  payload exhaustion warns and counts; per-type breakdown; threshold breach
-  exits non-zero; missing/invalid inputs abort with a reason.
-- **Against live staging**: smoke (15 req) and sustained (3 req/s × 5 m,
-  902 req) both 100% http + plugin ok with zero dropped iterations, and a
-  real-call liveness probe passed after each run. All four test types were
-  submitted successfully (address-auth at its ~7 s baseline, both envelope
-  types inside their 45 s window), and payload exhaustion was triggered
-  deliberately — 3 submitted, 3 skipped and counted, warning fired once.
-
 
 ## Known gaps
 
-1. **The concurrency ceiling is known but not characterised.** 10 VUs is clean
-   and 20 VUs kills the plugin pool on staging, so the useful range is narrow and
-   the knee sits somewhere in 10–20 that nobody has measured. Everything above 10
-   VUs is a failure observation, not performance data.
-2. **`xdr-unsigned-soroban` is untested at concurrency.** Four submissions to
-   staging (25 Aug and 1 Sep 2026) all succeeded at 1 VU (~6.7–6.9 s), so the
-   plugin accepts a signed auth entry on an unsigned envelope — but nothing is
-   known about how this path behaves under parallel load.
-3. **Sequence numbers are claimed at generation time.** `xdr-payment` payloads
+1. **Sequence numbers are claimed at generation time.** `xdr-payment` payloads
    reserve a contiguous sequence range on the signer account. If anything else
    transacts on that account between generating and running, the payloads are
    invalidated from that point on. Use a dedicated key for load testing.
-4. **Auth entries expire.** `--valid-for 1000` is roughly 85 minutes of ledgers.
+2. **Auth entries expire.** `--valid-for 1000` is roughly 85 minutes of ledgers.
    Generate close to the run, and check `authValidUntilLedger` in the sidecar if
    `func-auth-address-auth` starts failing for no apparent reason.

@@ -1,4 +1,8 @@
 node_modules/
+# User env files contain deployment-specific URLs and config — only the
+# *-example.env templates are committed.
+env/staging.env
+env/mainnet.env
 # Generated payloads contain signed transactions bound to a specific account,
 # sequence range and ledger window — never commit them.
 payloads*.json

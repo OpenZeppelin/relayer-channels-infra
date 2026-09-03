@@ -38,45 +38,45 @@ On mainnet the key must be funded manually, and `xdr-payment` runs spend real
 ## 3. A deployed smoke contract
 
 The test types call `no_auth_bump` and `write_with_address_auth` on a smoke
-contract. The contract ships in this repo (`packages/oz-channels/src/assets/
-smoke_contract.wasm`) and is deployed by the oz-channels CLI:
+contract. Deploy it using the oz-channels CLI:
 
 ```bash
 oz-channels smoke setup      # testnet: deploys fresh from the bundled WASM
 ```
-
-On mainnet, `smoke setup` configures the already-deployed contract
-`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` instead of deploying.
 
 Put the resulting contract ID in your env file (`CONTRACT_ID`) and pass it to
 the generator (`--contract-id`).
 
 ## 4. An API key for the target environment
 
-Export it in the shell — the env files refuse to run without it, and no key is
+Export it in the shell — the env file refuses to run without it, and no key is
 ever written to a file in this directory:
 
 ```bash
-export CHANNELS_STG_API_KEY=…   # staging (env/staging.env)
-export CHANNELS_API_KEY=…       # mainnet (env/mainnet.env)
+export CHANNELS_API_KEY=…
 ```
 
-Never point a staging key at mainnet or a mainnet key at a load test.
+Use a dedicated key for load testing, and never point a test key at production.
 
 ## 5. An environment file
 
-`env/staging.env` and `env/mainnet.env` describe OpenZeppelin's deployments.
-Running against your own deployment means copying one and replacing:
+Copy the appropriate template and fill in your deployment's values:
 
-- `BASE_URL` — your channels endpoint
+```bash
+cp env/staging-example.env env/staging.env    # for testnet/staging
+cp env/mainnet-example.env env/mainnet.env    # for mainnet/production
+```
+
+Then edit the file and update:
+
+- `BASE_URL` — your channels endpoint (e.g. `https://channels.yourdomain.com`)
 - `TARGET_KIND` — `test`, or `production` if the endpoint holds real funds
 - `CONTRACT_ID` — your smoke contract from step 3
 - `P95_MS` / `REQ_TIMEOUT` — read your deployment's `REQUEST_TIMEOUT_SECONDS`
   from its task definition; the latency gate is meaningless if it is above the
   service's own cutoff
-- the `P95_MS_<TYPE>` per-type gates — start from the staging baselines in
-  README.md, then replace them with your own measured baselines after the
-  first clean runs
+- the `P95_MS_<TYPE>` per-type gates — start from the defaults in the template,
+  then replace them with your own measured baselines after the first clean runs
 
 ## 6. Payloads
 

@@ -62,9 +62,8 @@ const SUMMARY_OUT = __ENV.SUMMARY_OUT || '';
 const GATE = (__ENV.GATE || '') === 'true';
 /**
  * Latency threshold, in ms. Set it to the TARGET's own request timeout —
- * staging declares REQUEST_TIMEOUT_SECONDS=20, so a p95 above 20000 there is
- * unreachable: requests are cut off by the service before they get that slow.
- * Read the live value from the task definition rather than assuming.
+ * a p95 above this value is unreachable because the service cuts the request
+ * first. Read the live value from your task/service definition.
  */
 const P95_MS = parseInt(__ENV.P95_MS || '20000', 10);
 const P99_MS = parseInt(__ENV.P99_MS || '19000', 10);

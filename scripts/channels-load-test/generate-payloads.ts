@@ -73,7 +73,7 @@ Generate pre-signed payloads for load-test.k6.js
                        ${ALL_TYPES.join(', ')}
   --network <net>      testnet | mainnet                     (default testnet)
   --rpc-url <url>      Soroban RPC                           (default per network)
-  --contract-id <id>   smoke contract                        (default CDSD3JZB…)
+  --contract-id <id>   smoke contract                        (REQUIRED)
   --account-name <n>   Stellar CLI key name                  (default test-account)
   --valid-for <n>      auth entry lifetime, in ledgers       (default 1000, ~85 min)
   --tx-timeout <n>     envelope timeBounds, seconds, <60      (default 45)
@@ -91,7 +91,11 @@ const rpcUrl = String(
   args['rpc-url'] ??
     (network === 'mainnet' ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org')
 );
-const contractId = String(args['contract-id'] ?? 'CDSD3JZBYWZ25FYXXQGQ5EPZOLVM6XPOLREZKN3474SPBWGGTVI3N57S');
+const contractId = String(args['contract-id'] ?? '');
+if (!contractId) {
+  console.error('error: --contract-id is required. Deploy a smoke contract with `oz-channels smoke setup` and pass its ID.');
+  process.exit(1);
+}
 const accountName = String(args['account-name'] ?? 'test-account');
 const validFor = parseInt(String(args['valid-for'] ?? '1000'), 10);
 /**
