@@ -330,12 +330,12 @@ module "alb" {
 resource "aws_lb_target_group" "shared" {
   count = local.shared_alb ? 1 : 0
 
-  name                          = "${local.app_name}-tg"
-  port                          = local.container_port
-  protocol                      = "HTTP"
-  vpc_id                        = var.vpc_id
-  target_type                   = "ip"
-  deregistration_delay          = 5
+  name                              = "${local.app_name}-tg"
+  port                              = local.container_port
+  protocol                          = "HTTP"
+  vpc_id                            = var.vpc_id
+  target_type                       = "ip"
+  deregistration_delay              = 5
   load_balancing_cross_zone_enabled = true
 
   health_check {
