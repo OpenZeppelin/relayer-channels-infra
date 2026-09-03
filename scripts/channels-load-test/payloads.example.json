@@ -1,0 +1,22 @@
+[
+  {
+    "testType": "func-auth-no-auth",
+    "params": {
+      "func": "REPLACE_ME_base64_host_function_xdr_for_no_auth_bump_42",
+      "auth": []
+    }
+  },
+  {
+    "testType": "xdr-payment",
+    "params": {
+      "xdr": "REPLACE_ME_base64_signed_transaction_envelope_unique_sequence_per_entry"
+    }
+  },
+  {
+    "testType": "func-auth-address-auth",
+    "params": {
+      "func": "REPLACE_ME_base64_host_function_xdr_for_write_with_address_auth",
+      "auth": ["REPLACE_ME_base64_signed_soroban_auth_entry"]
+    }
+  }
+]

@@ -1,0 +1,8 @@
+node_modules/
+# Generated payloads contain signed transactions bound to a specific account,
+# sequence range and ledger window — never commit them.
+payloads*.json
+!payloads.example.json
+*.meta.json
+summary*.json
+gate-*.json
