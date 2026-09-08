@@ -114,9 +114,9 @@ We use Terraform workspaces to manage three logical environments:
 
 | Environment | Workspace | ECS cluster (shared) | Networks | Tasks | CPU/Mem (task) |
 | --- | --- | --- | --- | --- | --- |
-| Staging | `stg` | `<prefix>-stg-cluster` | `stellar:testnet` | 1-4 | 512 / 1024 |
+| Staging | `stg` | `<prefix>-stg-cluster` | `stellar:testnet` | 1-4 | 4096 / 4096 |
 | Prod mainnet | `prod` | `<prefix>-prod-mainnet-cluster` | `stellar:pubnet` | 2-4 | 4096 / 8192 |
-| Prod testnet | `prod` | `<prefix>-prod-testnet-cluster` | `stellar:testnet` | 2-4 | 1024 / 2048 |
+| Prod testnet | `prod` | `<prefix>-prod-testnet-cluster` | `stellar:testnet` | 2-4 | 4096 / 4096 |
 
 Production testnet runs as a separate ECS service with an NGINX sidecar that strips the `/testnet/` path prefix before proxying to the relayer.
 
@@ -649,13 +649,65 @@ resource "aws_lb_listener_rule" "x402_testnet_path" {
 
 ---
 
-## 10. Gotchas
+## 10. Supported Assets
 
-### 10.1 Health check returns 401
+The x402 facilitator only settles payments for Soroban token contracts explicitly listed in its config. The pre-built images ship with the following mainnet asset contracts:
+
+```
+CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA
+CDOFW7HNKLUZRLFZST4EW7V3AV4JI5IHMT6BPXXSY2IEFZ4NE5TWU2P4
+CBZVSNVB55ANF24QVJL2K5QCLOAB6XITGTGXYEAF6NPTXYKEJUYQOHFC
+CAAV3AE3VKD2P4TY7LWTQMMJHIJ4WOCZ5ANCIJPC3NRSERKVXNHBU2W7
+CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75
+CBHIQPUXLFLC5O44ZJVUTCL5LMZFLVGU5DEIGSYKBSAPFMOGTKOQEPFM
+CBHBD77PWZ3AXPQVYVDBHDKEMVNOR26UZUZHWCB6QC7J5SETQPRUQAS4
+CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK
+CAO7DDJNGMOYQPRYDY5JVZ5YEK4UQBSMGLAEWRCUOTRMDSBMGWSAATDZ
+CCKCKCPHYVXQD4NECBFJTFSCU2AMSJGCNG4O6K4JVRE2BLPR7WNDBQIQ
+CDXKEC5ADOVKR7U3BO3FV5DUODEFH5VFYCHZ5IXXQ6FI2VO6A36COPFG
+CDYEOOVL6WV4JRY45CXQKOBJFFAPOM5KNQCCDNM333L6RM2L4RO3LKYG
+CBH4M45TQBLDPXOK6L7VYKMEJWFITBOL64BN3WDAIIDT4LNUTWTTOCKF
+CDYBK2X5ZEQ7ZNDN7IPWWMOQ6SWEJW4A4UE2PNDFDVCYNAXB64O4FNXX
+CD2QJMIYIUTFU45LOTPXBRQMPVKTW6NZ3GZEAAO3EHIDFKCMYVN7BZMW
+CCD6H4LBTHAPY3NGEE6TLLRUSPJGX4K5XI2J6E4MUNDB5TNXEKC23H5B
+CDUYP3U6HGTOBUNQD2WTLWNMNADWMENROKZZIHGEVGKIU3ZUDF42CDOK
+CAUXAGXTHTCS4RRJC2XDMP77UQMA75BZP4WTXRRBCJGUIRTXZZPS6XGB
+CDDQRIGZRK6Z6ILV4P276HL7D3P63GFW6HBA4N4YXDMFHZ2M4VZGVYRW
+CACFQEH2USDRGSBYFOVJMX4DMX7HMRYAYOV2IWR7XEX3DD3HYQEWPAAL
+CB2XMFB6BDIHFOSFB5IXHDOYV3SI3IXMNIZLPDZHC7ENDCXSBEBZAO2Y
+CBDRPADR3KIBJNUBNRTTO4P7NO5RVPMYKRJB5YCZUZ6B66RKYK324UJY
+CBVDRT5474OBUEXF5MJB3UGQ5CG7CKGCAH5M4RV5NBCDJUBZ5OXHJLOU
+CCFS6UDFSR5OJIN45RQPUCZ5JTTU5TQOTIS6XKYKNWKC4TVR752BOWOF
+CCEBHXWHT2UX6QQ7WZOV6KRGUILICPRFOZD2CEAHZ5AYX7EFW3RG6I2F
+CDKLJRIL7E2OWHTPTIHCAXTXI6PEXFOS6PJFAFCDBYWDT3B3QI42EOJA
+CDTHHEDO2YPVXEHZZA3MW5IYECGEM3MF7THR3H7TLDFD6PYPKMAMF6GJ
+CAIRIR3ITE2KNBWHRIAOBBZ2AHIKU5BVTKFTW5IYCOAENR4L5T2THGN6
+CAL6ER2TI6CTRAY6BFXWNWA7WTYXUXTQCHUBCIBU5O6KM3HJFG6Z6VXV
+CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV
+```
+
+You can also query a running facilitator for the live list:
+
+```bash
+curl -H "Authorization: Bearer <your-api-key>" \
+  https://<your-domain>/api/v1/plugins/x402/call/supported
+```
+
+### Adding or removing assets
+
+Assets live in `config.json` under `plugins[].config.assets` — each entry is a Soroban token contract address (the `C...` format). To support a new token, add its contract address to the array. To remove one, drop it. You can look up contract addresses on [stellar.expert](https://stellar.expert).
+
+If you're using the pre-built Docker Hub images and want to customize the asset list without building your own image, mount a custom `config.json` at `/app/config/config.json`. The `CONFIG_FILE_PATH` env var controls where the relayer reads its config.
+
+---
+
+## 11. Gotchas
+
+### 11.1 Health check returns 401
 
 This is normal. The relayer requires authentication on all endpoints, so the ALB health check targets `/` and treats `401` as healthy. If you see `401` in health check logs, the service is fine.
 
-### 10.2 STORAGE_ENCRYPTION_KEY must be base64
+### 11.2STORAGE_ENCRYPTION_KEY must be base64
 
 The `STORAGE_ENCRYPTION_KEY` needs to be a 32-byte base64-encoded string, not hex:
 
@@ -665,11 +717,11 @@ openssl rand -base64 32
 
 If you use hex encoding, the relayer won't start and the error message isn't particularly helpful.
 
-### 10.3 Channels API key fee limits
+### 11.3Channels API key fee limits
 
 New Channels API keys ship with a default fee limit that's almost certainly too low for x402 settlement volume. Bump it via the management endpoint before deploying.
 
-### 10.4 Keystore JSON in SSM
+### 11.4Keystore JSON in SSM
 
 The keystore JSON has to be stored as a single-line string in SSM. The entrypoint script writes it to a file at container start. Quick sanity check before deploying:
 
@@ -678,29 +730,29 @@ aws ssm get-parameter --name "/x402/stg/keystore-json" --with-decryption \
   --query 'Parameter.Value' --output text | jq .
 ```
 
-### 10.5 Shared ECS cluster capacity
+### 11.5Shared ECS cluster capacity
 
 Since x402 runs in the same ECS cluster as Channels, make sure there's enough Fargate capacity for both. The `RunningTaskCount` alarm will catch capacity issues in production.
 
-### 10.6 Redis is single-node
+### 11.6Redis is single-node
 
 The x402 Redis instance is a single `cache.t4g.micro` with no failover. That's fine for this workload (low state volume), but Redis maintenance windows will cause brief unavailability. The relayer handles this gracefully and reconnects on its own.
 
-### 10.7 Transaction expiration is 6 minutes
+### 11.7Transaction expiration is 6 minutes
 
 `TRANSACTION_EXPIRATION_HOURS=0.1` means transactions expire after roughly 6 minutes. If Channels is slow to settle, the facilitator will consider the transaction expired. Keep an eye on Channels health.
 
 ---
 
-## 11. Appendix
+## 12. Appendix
 
 ### Resource summary per environment
 
 | Resource | Staging | Prod mainnet | Prod testnet |
 | --- | --- | --- | --- |
 | ECS tasks | 1-4 | 2-4 | 2-4 |
-| Task CPU / Memory | 512 / 1024 | 4096 / 8192 | 1024 / 2048 |
-| Container CPU / Memory | 256 / 512 | 3584 / 6656 | 512 / 1024 |
+| Task CPU / Memory | 4096 / 4096 | 4096 / 8192 | 4096 / 4096 |
+| Container CPU / Memory | 3584 / 3584 | 3584 / 6656 | 3584 / 3584 |
 | Redis node type | cache.t4g.micro | cache.t4g.micro | cache.t4g.micro |
 | Log retention | 3 days | 365 days | 365 days |
 | CloudWatch alarms | No | Yes | No |

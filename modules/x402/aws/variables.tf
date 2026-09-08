@@ -114,13 +114,13 @@ variable "container_port" {
 variable "cpu" {
   type        = number
   description = "ECS task CPU units (1 vCPU = 1024)"
-  default     = 512
+  default     = 4096
 }
 
 variable "memory" {
   type        = number
   description = "ECS task memory in MiB"
-  default     = 1024
+  default     = 4096
 }
 
 variable "desired_count" {

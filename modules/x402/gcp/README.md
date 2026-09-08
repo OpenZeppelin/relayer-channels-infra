@@ -109,8 +109,8 @@ sequenceDiagram
 
 | Resource | Module default (prod) | Module default (non-prod) |
 | --- | --- | --- |
-| CPU | 1 vCPU | 1 vCPU |
-| Memory | 2 Gi | 2 Gi |
+| CPU | 4 vCPU | 4 vCPU |
+| Memory | 4 Gi | 4 Gi |
 | Min instances | 2 | 1 |
 | Max instances | 10 | 4 |
 | CPU always allocated | yes | no |
@@ -119,7 +119,7 @@ sequenceDiagram
 | LB deletion protection | on | off |
 | Log retention | 30 days | 7 days |
 
-x402 is much lighter than Channels. A 1 GB BASIC Redis and 1 vCPU Cloud Run instances handle production traffic comfortably — scale up only if you see sustained high CPU or memory.
+x402 is much lighter than Channels. A 1 GB BASIC Redis is more than enough, and the 4 vCPU / 4 Gi default gives plenty of headroom for bursty settlement traffic. You can scale down for non-prod if you want, but there's no reason to go below 2 vCPU in production.
 
 ---
 
@@ -220,7 +220,7 @@ export TF_VAR_storage_encryption_key="$(openssl rand -base64 32)"
 export TF_VAR_channels_api_key="<channels-api-key-from-channels-service>"
 ```
 
-`storage_encryption_key` must be base64-encoded, not hex — see [Section 9.1](#91-storage_encryption_key-must-be-base64).
+`storage_encryption_key` must be base64-encoded, not hex — see [Section 10.1](#101-storage_encryption_key-must-be-base64).
 
 ### 4.4. Call the module
 
@@ -320,8 +320,8 @@ The module handles everything: enabling GCP APIs, creating secrets, provisioning
 | --- | --- | --- |
 | `app_name` | `"x402-facilitator"` | Resource name prefix |
 | `connector_ip_cidr_range` | `"10.8.0.0/28"` | VPC connector CIDR (must be /28, unique per env) |
-| `cpu` | `"1"` | Cloud Run CPU allocation |
-| `memory` | `"2Gi"` | Cloud Run memory allocation |
+| `cpu` | `"4"` | Cloud Run CPU allocation |
+| `memory` | `"4Gi"` | Cloud Run memory allocation |
 | `min_instance_count` | `null` (2 for prod, 1 otherwise) | Minimum Cloud Run instances |
 | `max_instance_count` | `null` (10 for prod, 4 otherwise) | Maximum Cloud Run instances |
 | `redis_tier` | `null` (BASIC) | `BASIC` or `STANDARD_HA` |
@@ -628,9 +628,61 @@ gcloud logging metrics create x402_errors \
 
 ---
 
-## 9. Key Gotchas
+## 9. Supported Assets
 
-### 9.1. STORAGE_ENCRYPTION_KEY must be base64
+The x402 facilitator only settles payments for Soroban token contracts explicitly listed in its config. The pre-built images ship with the following mainnet asset contracts:
+
+```
+CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA
+CDOFW7HNKLUZRLFZST4EW7V3AV4JI5IHMT6BPXXSY2IEFZ4NE5TWU2P4
+CBZVSNVB55ANF24QVJL2K5QCLOAB6XITGTGXYEAF6NPTXYKEJUYQOHFC
+CAAV3AE3VKD2P4TY7LWTQMMJHIJ4WOCZ5ANCIJPC3NRSERKVXNHBU2W7
+CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75
+CBHIQPUXLFLC5O44ZJVUTCL5LMZFLVGU5DEIGSYKBSAPFMOGTKOQEPFM
+CBHBD77PWZ3AXPQVYVDBHDKEMVNOR26UZUZHWCB6QC7J5SETQPRUQAS4
+CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK
+CAO7DDJNGMOYQPRYDY5JVZ5YEK4UQBSMGLAEWRCUOTRMDSBMGWSAATDZ
+CCKCKCPHYVXQD4NECBFJTFSCU2AMSJGCNG4O6K4JVRE2BLPR7WNDBQIQ
+CDXKEC5ADOVKR7U3BO3FV5DUODEFH5VFYCHZ5IXXQ6FI2VO6A36COPFG
+CDYEOOVL6WV4JRY45CXQKOBJFFAPOM5KNQCCDNM333L6RM2L4RO3LKYG
+CBH4M45TQBLDPXOK6L7VYKMEJWFITBOL64BN3WDAIIDT4LNUTWTTOCKF
+CDYBK2X5ZEQ7ZNDN7IPWWMOQ6SWEJW4A4UE2PNDFDVCYNAXB64O4FNXX
+CD2QJMIYIUTFU45LOTPXBRQMPVKTW6NZ3GZEAAO3EHIDFKCMYVN7BZMW
+CCD6H4LBTHAPY3NGEE6TLLRUSPJGX4K5XI2J6E4MUNDB5TNXEKC23H5B
+CDUYP3U6HGTOBUNQD2WTLWNMNADWMENROKZZIHGEVGKIU3ZUDF42CDOK
+CAUXAGXTHTCS4RRJC2XDMP77UQMA75BZP4WTXRRBCJGUIRTXZZPS6XGB
+CDDQRIGZRK6Z6ILV4P276HL7D3P63GFW6HBA4N4YXDMFHZ2M4VZGVYRW
+CACFQEH2USDRGSBYFOVJMX4DMX7HMRYAYOV2IWR7XEX3DD3HYQEWPAAL
+CB2XMFB6BDIHFOSFB5IXHDOYV3SI3IXMNIZLPDZHC7ENDCXSBEBZAO2Y
+CBDRPADR3KIBJNUBNRTTO4P7NO5RVPMYKRJB5YCZUZ6B66RKYK324UJY
+CBVDRT5474OBUEXF5MJB3UGQ5CG7CKGCAH5M4RV5NBCDJUBZ5OXHJLOU
+CCFS6UDFSR5OJIN45RQPUCZ5JTTU5TQOTIS6XKYKNWKC4TVR752BOWOF
+CCEBHXWHT2UX6QQ7WZOV6KRGUILICPRFOZD2CEAHZ5AYX7EFW3RG6I2F
+CDKLJRIL7E2OWHTPTIHCAXTXI6PEXFOS6PJFAFCDBYWDT3B3QI42EOJA
+CDTHHEDO2YPVXEHZZA3MW5IYECGEM3MF7THR3H7TLDFD6PYPKMAMF6GJ
+CAIRIR3ITE2KNBWHRIAOBBZ2AHIKU5BVTKFTW5IYCOAENR4L5T2THGN6
+CAL6ER2TI6CTRAY6BFXWNWA7WTYXUXTQCHUBCIBU5O6KM3HJFG6Z6VXV
+CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV
+```
+
+You can also query a running facilitator for the live list:
+
+```bash
+curl -H "Authorization: Bearer <your-api-key>" \
+  https://x402.your-company.com/api/v1/plugins/x402/call/supported
+```
+
+### Adding or removing assets
+
+Assets live in `config.json` under `plugins[].config.assets` — each entry is a Soroban token contract address (the `C...` format). To support a new token, add its contract address to the array. To remove one, drop it. You can look up contract addresses on [stellar.expert](https://stellar.expert).
+
+If you're using the pre-built Docker Hub images and want to customize the asset list without building your own image, mount a custom `config.json` at `/app/config/config.json`. The `CONFIG_FILE_PATH` env var controls where the relayer reads its config.
+
+---
+
+## 10. Gotchas
+
+### 11.1. STORAGE_ENCRYPTION_KEY must be base64
 
 `STORAGE_ENCRYPTION_KEY` must be a 32-byte base64-encoded string, **not hex**. Generate it with:
 
@@ -640,46 +692,46 @@ openssl rand -base64 32
 
 If you accidentally use hex encoding, the relayer won't start and the error message isn't helpful.
 
-### 9.2. VPC connector CIDR overlap
+### 11.2. VPC connector CIDR overlap
 
 Each environment needs its own `/28` CIDR for the VPC connector. If stg and prod share a VPC, use different ranges:
 - stg: `10.8.0.0/28`
 - prod: `10.9.0.0/28`
 
-### 9.3. Private Service Access is shared
+### 11.3. Private Service Access is shared
 
 GCP allows only one Private Service Access connection per VPC per service (`servicenetworking.googleapis.com`). If Channels already created one, you can either import it into your x402 Terraform state (`terraform import google_service_networking_connection.private_service <vpc-name>`) or just share the VPC peering range — both modules can use the same connection.
 
-### 9.4. SSL cert provisioning delay
+### 11.4. SSL cert provisioning delay
 
 Google-managed SSL certs take 15-60 minutes to provision after DNS points at the LB IP. HTTPS will fail during this window. If the cert stays `FAILED_NOT_VISIBLE` for 30+ minutes, verify DNS is correct, then bump the cert resource name suffix (e.g. `-cert` -> `-cert-v2`) and re-apply.
 
-### 9.5. Channels API key fee limits
+### 11.5. Channels API key fee limits
 
 New Channels API keys ship with a low default fee limit that probably won't cut it for x402 settlement volume. Bump it via the Channels management endpoint before deploying x402.
 
-### 9.6. Transaction expiration is 6 minutes
+### 10.6. Transaction expiration is 6 minutes
 
 `TRANSACTION_EXPIRATION_HOURS=0.1` means transactions expire after ~6 minutes. If Channels is slow to settle, x402 will treat the transaction as expired. Make sure Channels is healthy and responsive before you start taking traffic.
 
-### 9.7. Memorystore maintenance window
+### 10.7. Memorystore maintenance window
 
 BASIC tier Redis has no failover. You might see brief unavailability during the weekly maintenance window (Saturday 00:00-01:00 UTC by default). The relayer reconnects automatically, but if you need zero-downtime, upgrade to `STANDARD_HA`.
 
-### 9.8. Cloud Run cold starts
+### 10.8. Cloud Run cold starts
 
 With `cpu_idle = true` (the non-prod default), Cloud Run can scale to zero and you'll hit cold-start latency (~5-10s). For production, set `cpu_idle = false` and `min_instance_count >= 2` to keep instances warm.
 
 ---
 
-## 10. Appendix
+## 11. Appendix
 
-### 10.1. Resource summary per environment
+### 11.1. Resource summary per environment
 
 | Resource | Staging | Production |
 | --- | --- | --- |
 | Cloud Run instances | 1-4 | 2-10 |
-| CPU / Memory | 1 vCPU / 2 Gi | 2 vCPU / 4 Gi |
+| CPU / Memory | 4 vCPU / 4 Gi | 4 vCPU / 4 Gi |
 | CPU always allocated | No | Yes |
 | Redis tier | BASIC | BASIC |
 | Redis memory | 1 GB | 1 GB |
@@ -687,7 +739,7 @@ With `cpu_idle = true` (the non-prod default), Cloud Run can scale to zero and y
 | LB deletion protection | Off | On |
 | Cloud Run ingress | All traffic | Internal + LB only |
 
-### 10.2. Terraform provider versions
+### 11.2. Terraform provider versions
 
 | Provider | Version |
 | --- | --- |
@@ -695,7 +747,7 @@ With `cpu_idle = true` (the non-prod default), Cloud Run can scale to zero and y
 | Google | >= 5.0, < 7.0 |
 | Cloudflare (optional) | ~> 5.0 |
 
-### 10.3. Container image layout
+### 11.3. Container image layout
 
 ```
 /app/
@@ -709,7 +761,7 @@ With `cpu_idle = true` (the non-prod default), Cloud Run can scale to zero and y
 └── openzeppelin-relayer       # Rust binary
 ```
 
-### 10.4. GCP APIs required
+### 11.4. GCP APIs required
 
 ```
 run.googleapis.com
@@ -724,7 +776,7 @@ servicenetworking.googleapis.com
 artifactregistry.googleapis.com
 ```
 
-### 10.5. Comparison: x402 vs Channels on GCP
+### 11.5. Comparison: x402 vs Channels on GCP
 
 | Aspect | Channels | x402 |
 | --- | --- | --- |

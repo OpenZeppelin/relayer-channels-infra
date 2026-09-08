@@ -125,13 +125,13 @@ variable "container_port" {
 variable "cpu" {
   type        = string
   description = "Cloud Run CPU allocation (e.g. '1', '2', '4')"
-  default     = "1"
+  default     = "4"
 }
 
 variable "memory" {
   type        = string
   description = "Cloud Run memory allocation (e.g. '2Gi', '4Gi')"
-  default     = "2Gi"
+  default     = "4Gi"
 }
 
 variable "min_instance_count" {
