@@ -435,9 +435,11 @@ curl -s -X POST https://channels.your-company.com/api/v1/relayers \
     "signer_id": "<signer-id-from-above>",
     "network_type": "stellar",
     "paused": false,
-    "policies": { "min_balance": 0, "fee_payment_strategy": "relayer" }
+    "policies": { "min_balance": 0, "fee_payment_strategy": "relayer", "concurrent_transactions": true }
   }'
 ```
+
+> `concurrent_transactions` is required when running multiple Cloud Run instances. Without it, the relayer serializes all transactions through a single lane gate per relayer, which causes sequence number contention across instances. Transactions will queue behind each other, eventually expiring with `time_bounds expired`. If you are running a single instance, this setting is optional but still recommended.
 
 ### 4.10. Bootstrap channels
 
