@@ -232,6 +232,18 @@ variable "allowed_fund_relayer_ids" {
   default     = ""
 }
 
+variable "fee_limit" {
+  type        = string
+  description = "Per-key fee budget in stroops (e.g. 1000000000 = 100 XLM). Empty string disables fee limiting."
+  default     = "1000000000"
+}
+
+variable "fee_reset_period_seconds" {
+  type        = string
+  description = "Fee budget reset period in seconds (e.g. 86400 = 24 hours). Empty string disables periodic reset."
+  default     = "86400"
+}
+
 variable "distributed_mode" {
   type        = bool
   description = "Enable distributed mode for the application. When true, the queue backend is used for cross-instance coordination."

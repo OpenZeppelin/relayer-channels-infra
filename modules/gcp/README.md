@@ -488,7 +488,7 @@ curl -sS https://channels.your-company.com/api/v1/health
 oz-channels smoke run -p prod-mainnet
 ```
 
-A healthy service returns `{"status":"ok"}`. The smoke test submits a test transaction end-to-end and polls for confirmation; success prints a confirmed transaction ID. If it times out, check channel pool size and fund account balance before debugging further.
+A healthy service returns `OK` (plain text, HTTP 200). The smoke test submits a test transaction end-to-end and polls for confirmation; success prints a confirmed transaction ID. If it times out, check channel pool size and fund account balance before debugging further.
 
 ---
 
