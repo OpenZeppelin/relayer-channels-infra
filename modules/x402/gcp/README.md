@@ -419,7 +419,7 @@ gcloud run services describe x402-facilitator-service \
 
 # Test the health endpoint
 curl -sS https://x402.your-company.com/api/v1/health
-# Expected: {"status":"ok"} or 401 depending on auth configuration
+# Expected: OK (plain text, HTTP 200) or 401 depending on auth configuration
 
 # Test the supported endpoint
 curl -H "Authorization: Bearer <your-api-key>" \

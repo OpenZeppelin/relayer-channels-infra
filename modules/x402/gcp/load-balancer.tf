@@ -58,6 +58,12 @@ resource "google_compute_backend_service" "this" {
   load_balancing_scheme = "EXTERNAL_MANAGED"
   timeout_sec           = var.lb_timeout_sec
 
+  # HSTS and security headers
+  custom_response_headers = [
+    "Strict-Transport-Security: max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options: nosniff",
+  ]
+
   backend {
     group = google_compute_region_network_endpoint_group.cloud_run.id
   }

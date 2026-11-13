@@ -63,9 +63,17 @@ locals {
     ] : [],
   )
 
-  managed_environment_optional = var.allowed_fund_relayer_ids != "" ? [
-    { name = "ALLOWED_FUND_RELAYER_IDS", value = var.allowed_fund_relayer_ids },
-  ] : []
+  managed_environment_optional = concat(
+    var.allowed_fund_relayer_ids != "" ? [
+      { name = "ALLOWED_FUND_RELAYER_IDS", value = var.allowed_fund_relayer_ids },
+    ] : [],
+    var.fee_limit != "" ? [
+      { name = "FEE_LIMIT", value = var.fee_limit },
+    ] : [],
+    var.fee_reset_period_seconds != "" ? [
+      { name = "FEE_RESET_PERIOD_SECONDS", value = var.fee_reset_period_seconds },
+    ] : [],
+  )
 
   user_env_keys = { for e in var.container_environment : e.name => true }
   final_environment = concat(
